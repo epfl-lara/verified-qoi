@@ -44,18 +44,18 @@ object decoder {
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  def decodeDiff(pxPrev: Pixel, b1: Int): Pixel = {
+  def decodeDiff(pxPrev: Int, b1: Int): Int = {
     require((b1 & Mask2) == OpDiff)
-    pxPrev.incremented(
+    Pixel.incremented(pxPrev)(
       (((b1 >> 4) & 0x03) - 2).toByte,
       (((b1 >> 2) & 0x03) - 2).toByte,
       ((b1 & 0x03) - 2).toByte)
   }
 
-  def decodeLuma(pxPrev: Pixel, b1: Int, b2: Int): Pixel = {
+  def decodeLuma(pxPrev: Int, b1: Int, b2: Int): Int = {
     require((b1 & Mask2) == OpLuma)
     val vg = (b1 & 0x3f) - 32
-    pxPrev.incremented(
+    Pixel.incremented(pxPrev)(
       (vg - 8 + ((b2 >> 4) & 0x0f)).toByte,
       vg.toByte,
       (vg - 8 + (b2 & 0x0f)).toByte)
@@ -70,8 +70,8 @@ object decoder {
   @opaque
   @inlineOnce
   def decodeBigStepPropLemma(pixels: Array[Byte],
-                             pxPrev: Pixel, pxPos0: Long,
-                             px2: Pixel, pxPos2: Long)(using Ctx): Unit = {
+                             pxPrev: Int, pxPos0: Long,
+                             px2: Int, pxPos2: Long)(using Ctx): Unit = {
     require(0 <= pxPos0 && pxPos0 < pxPos2 && pxPos2 <= pixels.length)
     require(pxPos0 + chan < pxPos2)
     require(pxPos0 % chan == 0 && pxPos2 % chan == 0)
@@ -85,8 +85,8 @@ object decoder {
 
   @pure
   def decodeBigStepProp(pixels: Array[Byte],
-                        pxPrev: Pixel, pxPos0: Long,
-                        px2: Pixel, pxPos2: Long)(using Ctx): Boolean = {
+                        pxPrev: Int, pxPos0: Long,
+                        px2: Int, pxPos2: Long)(using Ctx): Boolean = {
     require(0 <= pxPos0 && pxPos0 < pxPos2 && pxPos2 <= pixels.length)
     require(pxPos0 % chan == 0 && pxPos2 % chan == 0)
     require(pixels.length % chan == 0)
@@ -99,11 +99,15 @@ object decoder {
 
   enum DecodedNext {
     case Run(run: Long)
-    case DiffIndexColor(px: Pixel)
+    case DiffIndexColor(px: Int)
   }
   import DecodedNext._
 
-  def writePixel(pixels: Array[Byte], px: Pixel, pxPos: Long)(using Ctx): Unit = {
+  // TODO: Pas opaque, on a besoin de voir ce qu'il y a dedans pour writePixelPureBytesEqLemma
+  // OK
+//  @opaque
+//  @inlineOnce
+  def writePixel(pixels: Array[Byte], px: Int, pxPos: Long)(using Ctx): Unit = {
     require(pixels.length == pixelsLen)
     require(pxPosInv(pxPos))
     require(pxPos + chan <= pixels.length)
@@ -111,25 +115,84 @@ object decoder {
     val pixelsPre = freshCopy(pixels)
     eqImpliesArraysEq(pixelsPre, pixels, 0, pxPos)
     assert(arraysEq(pixelsPre, pixels, 0, pxPos))
-    pixels(pxPos.toInt) = px.r
-    updatedAtArraysEq(pixels, pxPos, px.r)
-    pixels(pxPos.toInt + 1) = px.g
-    updatedAtArraysEq(pixels, pxPos + 1, px.g)
-    pixels(pxPos.toInt + 2) = px.b
-    updatedAtArraysEq(pixels, pxPos + 2, px.b)
+
+    pixels(pxPos.toInt) = Pixel.r(px)
+    updatedAtArraysEq(pixelsPre, pxPos, Pixel.r(px))
+    assert(arraysEq(pixelsPre, pixels, 0, pxPos))
+    val pixelsR = freshCopy(pixels)
+
+    pixels(pxPos.toInt + 1) = Pixel.g(px)
+    updatedAtArraysEq(pixelsR, pxPos + 1, Pixel.g(px))
+    arraysEqDropRightLemma(pixelsR, pixels, 0, pxPos, pxPos + 1)
+    assert(arraysEq(pixelsR, pixels, 0, pxPos))
+    val pixelsRG = freshCopy(pixels)
+
+    pixels(pxPos.toInt + 2) = Pixel.b(px)
+    updatedAtArraysEq(pixelsRG, pxPos + 2, Pixel.b(px))
+    arraysEqDropRightLemma(pixelsRG, pixels, 0, pxPos, pxPos + 2)
+    assert(arraysEq(pixelsRG, pixels, 0, pxPos))
+    val pixelsRGB = freshCopy(pixels)
+
+    arraysEqTransLemma(pixelsPre, pixelsR, pixelsRG, 0, pxPos)
+    arraysEqTransLemma(pixelsPre, pixelsRG, pixelsRGB, 0, pxPos)
+    assert(arraysEq(pixelsPre, pixelsRGB, 0, pxPos))
+
     if (chan == 4) {
-      pixels(pxPos.toInt + 3) = px.a
-      updatedAtArraysEq(pixels, pxPos + 3, px.a)
+      pixels(pxPos.toInt + 3) = Pixel.a(px)
+      updatedAtArraysEq(pixelsRGB, pxPos + 3, Pixel.a(px))
+      arraysEqDropRightLemma(pixelsRGB, pixels, 0, pxPos, pxPos + 3)
+      assert(arraysEq(pixelsRGB, pixels, 0, pxPos))
+      arraysEqTransLemma(pixelsPre, pixelsRGB, pixels, 0, pxPos)
+      assert(arraysEq(pixelsPre, pixels, 0, pxPos))
+    } else {
+      assert(pixelsRGB == pixels)
+      check(arraysEq(pixelsPre, pixels, 0, pxPos))
     }
-    sorry(arraysEq(pixelsPre, pixels, 0, pxPos)) // TODO
   }.ensuring { _ =>
+    old(pixels).length == pixels.length &&&
     arraysEq(old(pixels), pixels, 0, pxPos) &&&
     samePixels(pixels, px, pxPos, chan)
   }
 
+  // OK
+  @pure
+  def writePixelPure(pixels: Array[Byte], px: Int, pxPos: Long)(using Ctx): Array[Byte] = {
+    require(pixels.length == pixelsLen)
+    require(pxPosInv(pxPos))
+    require(pxPos + chan <= pixels.length)
+    val pixelsCpy = freshCopy(pixels)
+    writePixel(pixelsCpy, px, pxPos)
+    pixelsCpy
+  }.ensuring { newPixels =>
+    pixels.length == newPixels.length &&&
+    arraysEq(pixels, newPixels, 0, pxPos) &&&
+    samePixels(newPixels, px, pxPos, chan)
+  }
+
+  // OK
+  @pure
   @opaque
   @inlineOnce
-  def writeRunPixels(pixels: Array[Byte], px: Pixel, run0: Long, pxPos0: Long)(using Ctx): (Long, Long) = {
+  def writePixelPureBytesEqLemma(pixels: Array[Byte], px: Int, pxPos: Long, from: Long, to: Long, bytes2: Array[Byte])(using ctx1: Ctx): Unit = {
+    require(pixels.length == pixelsLen)
+    require(pxPosInv(pxPos))
+    require(pxPos + chan <= pixels.length)
+    require(bytes.length == bytes2.length)
+    require(0 <= from && from <= to && to <= bytes.length)
+    require(arraysEq(bytes, bytes2, from, to))
+
+    val ctx2 = Ctx(freshCopy(bytes2), w, h, chan)
+    val pix1 = writePixelPure(pixels, px, pxPos)(using ctx1)
+    val pix2 = writePixelPure(pixels, px, pxPos)(using ctx2)
+
+    {
+      ()
+    }.ensuring(_ => pix1 == pix2)
+  }
+
+  @opaque
+  @inlineOnce
+  def writeRunPixels(pixels: Array[Byte], px: Int, run0: Long, pxPos0: Long)(using Ctx): (Long, Long) = {
     require(pixels.length == pixelsLen)
     require(runInv(run0))
     require(pxPosInv(pxPos0))
@@ -138,7 +201,8 @@ object decoder {
     // Note: un run de 0 est possible: cela signifie que l'on répète 1 fois le px précédent
 
     val pxPos0PlusChan = pxPos0 + chan
-    sorry(pxPos0PlusChan % chan == 0 && pxPos0PlusChan <= pixels.length) // TODO
+    modSumLemma(pxPos0, chan)
+    assert(pxPos0PlusChan % chan == 0)
 
     val pixelsPre = freshCopy(pixels)
 
@@ -152,11 +216,14 @@ object decoder {
     check(samePixelsForall(pixels, px, pxPos0, pxPos0PlusChan, chan))
 
     if (run0 > 0 && pxPos0 + chan < pixels.length) {
-      sorry(pxPos0 + chan + chan <= pixels.length) // TODO
+      modLeqLemma(pxPos0PlusChan, pixels.length, chan)
+      assert(pxPos0PlusChan + chan <= pixels.length)
+
       val run0Minus1 = run0 - 1
 
       val pixelsPreRec = freshCopy(pixels)
-      sorry(arraysEq(pixelsPreRec, pixels, 0, pxPos0)) // TODO
+      eqImpliesArraysEq(pixelsPreRec, pixels, 0, pxPos0)
+      assert(arraysEq(pixelsPreRec, pixels, 0, pxPos0))
       assert(arraysEq(pixelsPre, pixelsPreRec, 0, pxPos0))
       assert(samePixelsForall(pixelsPreRec, px, pxPos0, pxPos0PlusChan, chan))
 
@@ -188,13 +255,15 @@ object decoder {
       assert((pxPos0PlusChan + chan + run0Minus1 * chan <= pixels.length) ==> (run2 == 0 && pxPos2 == pxPos0PlusChan + chan * (run0Minus1 + 1)))
       assert(((pxPos0 + chan + chan + (run0 - 1) * chan <= pixels.length) ==> (run2 == 0 && pxPos2 == pxPos0 + chan + chan * run0))
         because (run0Minus1 == run0 - 1 && pxPos0PlusChan == pxPos0 + chan))
+      assert((run0 - 1) * chan == run0 * chan - chan)
+      assert((pxPos0 + chan + chan) + ((run0 - 1) * chan) == (pxPos0 + chan + chan) + (run0 * chan - chan))
+      assert(pxPos0 + chan + chan + run0 * chan - chan == pxPos0 + chan + run0 * chan)
       assert(pxPos0 + chan + chan + (run0 - 1) * chan == pxPos0 + chan + run0 * chan)
       assert(pxPos0 + chan + chan * run0 == pxPos0 + chan * (run0 + 1))
-      check((pxPos0 + chan + run0 * chan <= pixels.length) ==> (run2 == 0 && pxPos2 == pxPos0 + chan * (run0 + 1)))
+      check((pxPos0 + chan + run0 * chan <= pixels.length) ==> (run2 == 0 && pxPos2 == pxPos0 + chan * (run0 + 1))) // TODO: Timeout
 
       (run2, pxPos2)
     } else {
-      check(pxPos0 < pxPos0 + chan)
       (run0, pxPos0 + chan)
     }
   }.ensuring { case (run2, pxPos2) =>
@@ -207,9 +276,9 @@ object decoder {
     ((pxPos0 + chan + chan * run0 <= pixels.length) ==> (run2 == 0 && pxPos2 == pxPos0 + chan * (run0 + 1)))
   }
 
-  case class DecodingIteration(px: Pixel, inPos: Long, pxPos: Long, remainingRun: Long)
+  case class DecodingIteration(px: Int, inPos: Long, pxPos: Long, remainingRun: Long)
 
-  def decodeNext(index: Array[Pixel], pixels: Array[Byte], pxPrev: Pixel, inPos0: Long, pxPos0: Long)(using Ctx): (DecodedNext, DecodingIteration) = {
+  def decodeNext(index: Array[Int], pixels: Array[Byte], pxPrev: Int, inPos0: Long, pxPos0: Long)(using Ctx): (DecodedNext, DecodingIteration) = {
     require(index.length == 64)
     require(pixels.length == pixelsLen)
     require(inPosInv(inPos0))
@@ -243,7 +312,7 @@ object decoder {
   }
 
   @pure
-  def decodeNextPure(index: Array[Pixel], pixels: Array[Byte], pxPrev: Pixel, inPos0: Long, pxPos0: Long)(using Ctx): (Array[Pixel], Array[Byte], DecodedNext, DecodingIteration) = {
+  def decodeNextPure(index: Array[Int], pixels: Array[Byte], pxPrev: Int, inPos0: Long, pxPos0: Long)(using Ctx): (Array[Int], Array[Byte], DecodedNext, DecodingIteration) = {
     require(index.length == 64)
     require(pixels.length == pixelsLen)
     require(inPosInv(inPos0))
@@ -264,7 +333,7 @@ object decoder {
       decIter.pxPos % chan == 0
   }
 
-  def decodeRange(index: Array[Pixel], pixels: Array[Byte], pxPrev: Pixel,
+  def decodeRange(index: Array[Int], pixels: Array[Byte], pxPrev: Int,
                   inPos0: Long, untilInPos: Long, pxPos0: Long)(using Ctx): DecodingIteration = {
     decreases(untilInPos - inPos0)
     require(index.length == 64)
@@ -284,6 +353,12 @@ object decoder {
     } else {
       decIter
     }
+    /*match {
+      case (Run(r), decIter) =>
+        ???
+      case (DiffIndexColor(px), decIter) =>
+        decodeRange(index, pixels, px, decIter.inPos, untilInPos, decIter.pxPos)
+    }*/
   }.ensuring { decIter =>
     index.length == 64 &&&
     old(pixels).length == pixels.length &&&
@@ -298,8 +373,8 @@ object decoder {
   @opaque
   @inlineOnce
   @pure
-  def decodeRangePureLemma(index: Array[Pixel], pixels: Array[Byte], pxPrev: Pixel,
-                           inPos0: Long, untilInPos: Long, pxPos0: Long)(using Ctx): (Array[Pixel], Array[Byte], DecodingIteration) = {
+  def decodeRangePureLemma(index: Array[Int], pixels: Array[Byte], pxPrev: Int,
+                           inPos0: Long, untilInPos: Long, pxPos0: Long)(using Ctx): (Array[Int], Array[Byte], DecodingIteration) = {
     require(index.length == 64)
     require(pixels.length == pixelsLen)
     require(inPosInv(inPos0))
@@ -321,9 +396,9 @@ object decoder {
   @opaque
   @inlineOnce
   @pure
-  def decodeRangePureNextLemma(index: Array[Pixel],
+  def decodeRangePureNextLemma(index: Array[Int],
                                pixels: Array[Byte],
-                               pxPrev: Pixel,
+                               pxPrev: Int,
                                inPos0: Long,
                                inPos1: Long,
                                pxPos0: Long)(using Ctx): Unit = {
@@ -351,9 +426,9 @@ object decoder {
   @opaque
   @inlineOnce
   @pure
-  def decodeRangePureBytesEqLemma(index: Array[Pixel],
+  def decodeRangePureBytesEqLemma(index: Array[Int],
                                   pixels: Array[Byte],
-                                  pxPrev: Pixel,
+                                  pxPrev: Int,
                                   inPos0: Long,
                                   untilInPos: Long,
                                   pxPos0: Long,
@@ -432,9 +507,9 @@ object decoder {
   @opaque
   @inlineOnce
   @pure
-  def decodeRangePureMergedLemma(index: Array[Pixel],
+  def decodeRangePureMergedLemma(index: Array[Int],
                                  pixels: Array[Byte],
-                                 pxPrev: Pixel,
+                                 pxPrev: Int,
                                  inPos0: Long,
                                  inPos1: Long,
                                  inPos2: Long,
@@ -498,8 +573,9 @@ object decoder {
     }
   }
 
+  // OK
   @pure
-  def doDecodeNext(index: Array[Pixel], pxPrev: Pixel, inPos0: Long)(using Ctx): (DecodedNext, Long) = {
+  def doDecodeNext(index: Array[Int], pxPrev: Int, inPos0: Long)(using Ctx): (DecodedNext, Long) = {
     require(index.length == 64)
     require(HeaderSize <= inPos0 && inPos0 < chunksLen)
     var px = pxPrev
@@ -510,11 +586,11 @@ object decoder {
     inPos += 1
 
     if (b1 == OpRgb) {
-      val px = pxPrev.withRgba(r = bytes(inPos.toInt), g = bytes(inPos.toInt + 1), b = bytes(inPos.toInt + 2))
+      val px = Pixel.withRgba(pxPrev)(r = bytes(inPos.toInt), g = bytes(inPos.toInt + 1), b = bytes(inPos.toInt + 2))
       inPos += 3
       (DiffIndexColor(px), inPos)
     } else if (b1 == OpRgba) {
-      val px = pxPrev.withRgba(r = bytes(inPos.toInt), g = bytes(inPos.toInt + 1), b = bytes(inPos.toInt + 2), a = bytes(inPos.toInt + 3))
+      val px = Pixel.withRgba(pxPrev)(r = bytes(inPos.toInt), g = bytes(inPos.toInt + 1), b = bytes(inPos.toInt + 2), a = bytes(inPos.toInt + 3))
       inPos += 4
       (DiffIndexColor(px), inPos)
     } else if ((b1 & Mask2) == OpIndex) {
@@ -525,6 +601,7 @@ object decoder {
       (DiffIndexColor(px), inPos)
     } else if ((b1 & Mask2) == OpLuma) {
       val b2 = bytes(inPos.toInt).toInt & 0xff
+      inPos += 1
       val px = decodeLuma(pxPrev, b1, b2)
       (DiffIndexColor(px), inPos)
     } else if ((b1 & Mask2) == OpRun) {
@@ -533,12 +610,13 @@ object decoder {
     } else {
       (DiffIndexColor(pxPrev), inPos)
     }
-  }
+  }.ensuring { case (_, inPos) => inPos <= inPos0 + 5 }
 
+  // TODO
   @opaque
   @inlineOnce
   @pure
-  def decodeNextPureBytesEqLemma(index: Array[Pixel], pixels: Array[Byte], pxPrev: Pixel, inPos0: Long, pxPos0: Long, bytes2: Array[Byte])(using ctx1: Ctx): Unit = {
+  def decodeNextPureBytesEqLemma(index: Array[Int], pixels: Array[Byte], pxPrev: Int, inPos0: Long, pxPos0: Long, bytes2: Array[Byte])(using ctx1: Ctx): Unit = {
     require(index.length == 64)
     require(pixels.length == pixelsLen)
     require(inPosInv(inPos0))
@@ -554,21 +632,80 @@ object decoder {
     {
       doDecodeNextBytesEqLemma(index, pxPrev, inPos0, bytes2)
       check(res1 == res2)
-      check(decIter1 == decIter2) // TODO: Timeout
       check(ix1 == ix2)
-      check(pix1 == pix2) // TODO: Timeout
+      assert(bytes(inPos0.toInt) == bytes2(inPos0.toInt))
+      assert(decIter1.inPos <= inPos0 + 5)
+      assert((inPos0 + 1 < decIter1.inPos) ==> {
+        arraysEqAtIndex(bytes, bytes2, inPos0, decIter1.inPos, inPos0 + 1)
+        bytes((inPos0 + 1).toInt) == bytes2((inPos0 + 1).toInt)
+      })
+      assert((inPos0 + 2 < decIter1.inPos) ==> {
+        arraysEqAtIndex(bytes, bytes2, inPos0, decIter1.inPos, inPos0 + 2)
+        bytes((inPos0 + 2).toInt) == bytes2((inPos0 + 2).toInt)
+      })
+      assert((inPos0 + 3 < decIter1.inPos) ==> {
+        arraysEqAtIndex(bytes, bytes2, inPos0, decIter1.inPos, inPos0 + 3)
+        bytes((inPos0 + 3).toInt) == bytes2((inPos0 + 3).toInt)
+      })
+      assert((inPos0 + 4 < decIter1.inPos) ==> {
+        arraysEqAtIndex(bytes, bytes2, inPos0, decIter1.inPos, inPos0 + 4)
+        bytes((inPos0 + 4).toInt) == bytes2((inPos0 + 4).toInt)
+      })
+      val b1 = bytes(inPos0.toInt).toInt & 0xff
+      if (b1 == OpRgb) {
+        assert(decIter1.inPos == inPos0 + 4)
+        assert(bytes((inPos0 + 1).toInt) == bytes2((inPos0 + 1).toInt))
+        assert(bytes((inPos0 + 2).toInt) == bytes2((inPos0 + 2).toInt))
+        assert(bytes((inPos0 + 3).toInt) == bytes2((inPos0 + 3).toInt))
+        check(decIter1 == decIter2)
+        check(pix1 == pix2)
+      } else if (b1 == OpRgba) {
+        assert(decIter1.inPos == inPos0 + 5)
+        assert(bytes((inPos0 + 1).toInt) == bytes2((inPos0 + 1).toInt))
+        assert(bytes((inPos0 + 2).toInt) == bytes2((inPos0 + 2).toInt))
+        assert(bytes((inPos0 + 3).toInt) == bytes2((inPos0 + 3).toInt))
+        assert(bytes((inPos0 + 4).toInt) == bytes2((inPos0 + 4).toInt))
+        check(decIter1 == decIter2)
+        check(pix1 == pix2)
+      } else if ((b1 & Mask2) == OpLuma) {
+        assert(decIter1.inPos == inPos0 + 2)
+        assert(bytes((inPos0 + 1).toInt) == bytes2((inPos0 + 1).toInt))
+        check(decIter1 == decIter2)
+        check(pix1 == pix2)
+      } else if ((b1 & Mask2) == OpIndex || (b1 & Mask2) == OpDiff) {
+        assert(decIter1.inPos == inPos0 + 1)
+        check(decIter1 == decIter2)
+        check(pix1 == pix2)
+      } else if ((b1 & Mask2) == OpRun) {
+        assert(decIter1.inPos == inPos0 + 1)
+        assert(res1 == Run(decodeRun(b1)))
+        assert(res2 == Run(decodeRun(b1)))
+        // TODO: Not so fast!! These require more than what they look!!
+        // TODO: Timeout
+        check(decIter1 == decIter2)
+        check(pix1 == pix2)
+      } else {
+        assert(res1 == DiffIndexColor(pxPrev))
+        assert(res2 == DiffIndexColor(pxPrev))
+        assert(decIter1.inPos == inPos0 + 1)
+        check(decIter1 == decIter2)
+        check(pix1 == pix2)
+      }
+      check(decIter1 == decIter2)
+      check(pix1 == pix2)
     }.ensuring { _ =>
+      res1 == res2 &&&
       ix1 == ix2 &&&
       pix1 == pix2 &&&
-      res1 == res2 &&&
       decIter1 == decIter2
     }
   }
 
+  // OK
   @opaque
   @inlineOnce
   @pure
-  def doDecodeNextBytesEqLemma(index: Array[Pixel], pxPrev: Pixel, inPos0: Long, bytes2: Array[Byte])(using ctx1: Ctx): Unit = {
+  def doDecodeNextBytesEqLemma(index: Array[Int], pxPrev: Int, inPos0: Long, bytes2: Array[Byte])(using ctx1: Ctx): Unit = {
     require(index.length == 64)
     require(inPosInv(inPos0))
     require(inPos0 < chunksLen)
@@ -582,7 +719,7 @@ object decoder {
     {
       assert(bytes(inPos0.toInt) == bytes2(inPos0.toInt))
       check(inPos1 == inPos2)
-      check(res1 == res2)
+      check(res1 == res2) // smt-z3 struggles here, use smt-cvc4 for this one
       ()
     }.ensuring { _ =>
       res1 == res2 &&&

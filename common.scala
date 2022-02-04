@@ -19,32 +19,24 @@ object common {
   val HeaderSize = 14
   val Padding = 8
 
-  opaque type Pixel = Int
   object Pixel {
-    def fromInt(v: Int): Pixel = v
+    def r(px: Int): Byte = ((px >> 24) & 0xff).toByte
+    def g(px: Int): Byte = ((px >> 16) & 0xff).toByte
+    def b(px: Int): Byte = ((px >> 8) & 0xff).toByte
+    def a(px: Int): Byte = (px & 0xff).toByte
 
-    def fromRgba(r: Byte, g: Byte, b: Byte, a: Byte): Pixel =
+    def fromRgba(r: Byte, g: Byte, b: Byte, a: Byte): Int =
       (r << 24) | ((g << 16) & 0xffffff) | ((b << 8) & 0xffff) | (a.toInt & 0xff)
 
-    extension (p: Pixel) {
-      def toInt: Int = p
+    def incremented(px: Int)(r: Byte = 0, g: Byte = 0, b: Byte = 0, a: Byte = 0): Int =
+      fromRgba(((Pixel.r(px) + r) & 0xff).toByte, ((Pixel.g(px) + g) & 0xff).toByte, ((Pixel.b(px) + b) & 0xff).toByte, ((Pixel.a(px) + a) & 0xff).toByte)
 
-      def r: Byte = ((p >> 24) & 0xff).toByte
-      def g: Byte = ((p >> 16) & 0xff).toByte
-      def b: Byte = ((p >> 8) & 0xff).toByte
-      def a: Byte = (p & 0xff).toByte
-
-      def incremented(r: Byte = 0, g: Byte = 0, b: Byte = 0, a: Byte = 0): Pixel =
-        fromRgba(((p.r + r) & 0xff).toByte, ((p.g + g) & 0xff).toByte, ((p.b + b) & 0xff).toByte, ((p.a + a) & 0xff).toByte)
-
-      def withRgba(r: Byte = p.r, g: Byte = p.g, b: Byte = p.b, a: Byte = p.a): Pixel =
-        fromRgba(r, g, b, a)
-    }
+    def withRgba(px: Int)(r: Byte = Pixel.r(px), g: Byte = Pixel.g(px), b: Byte = Pixel.b(px), a: Byte = Pixel.a(px)): Int =
+      fromRgba(r, g, b, a)
   }
-  import Pixel._
 
-  def colorPos(px: Pixel): Int = {
-    ((px.r & 0xff) * 3 + (px.g & 0xff) * 5 + (px.b & 0xff) * 7 + (px.a & 0xff) * 11) % 64
+  def colorPos(px: Int): Int = {
+    ((Pixel.r(px) & 0xff) * 3 + (Pixel.g(px) & 0xff) * 5 + (Pixel.b(px) & 0xff) * 7 + (Pixel.a(px) & 0xff) * 11) % 64
   }.ensuring(x => x >= 0 && x < 64)
 
   def write16(data: Array[Byte], i: Int, value: Short): Unit = {
@@ -113,7 +105,7 @@ object common {
 
   // OK
   @pure
-  def samePixels(pixels: Array[Byte], px: Pixel, pxPos: Long, chan: Long): Boolean = {
+  def samePixels(pixels: Array[Byte], px: Int, pxPos: Long, chan: Long): Boolean = {
     require(3 <= chan && chan <= 4)
     require(pixels.length % chan == 0)
     require(0 <= pxPos && pxPos < pixels.length)
@@ -122,17 +114,17 @@ object common {
     modLeqLemma(pxPos, pixels.length, chan)
     assert(pxPos + chan <= pixels.length)
 
-    pixels(pxPos.toInt) == px.r &&
-    pixels(pxPos.toInt + 1) == px.g &&
-    pixels(pxPos.toInt + 2) == px.b &&
-    ((chan == 4) ==> (pixels(pxPos.toInt + 3) == px.a))
+    pixels(pxPos.toInt) == Pixel.r(px) &&
+    pixels(pxPos.toInt + 1) == Pixel.g(px) &&
+    pixels(pxPos.toInt + 2) == Pixel.b(px) &&
+    ((chan == 4) ==> (pixels(pxPos.toInt + 3) == Pixel.a(px)))
   }
 
   // OK
   @pure
   @opaque
   @inlineOnce
-  def samePixelsSingleElementRange(pixels: Array[Byte], px: Pixel, pxPos: Long, chan: Long): Unit = {
+  def samePixelsSingleElementRange(pixels: Array[Byte], px: Int, pxPos: Long, chan: Long): Unit = {
     require(3 <= chan && chan <= 4)
     require(0 <= pxPos && pxPos < pixels.length)
     require(pxPos % chan == 0 && pixels.length % chan == 0)
@@ -143,7 +135,7 @@ object common {
   @pure
   @opaque
   @inlineOnce
-  def samePixelsExtendedRangeLemma(pixels: Array[Byte], px: Pixel, pxPosStart: Long, pxPosEnd: Long, chan: Long): Unit = {
+  def samePixelsExtendedRangeLemma(pixels: Array[Byte], px: Int, pxPosStart: Long, pxPosEnd: Long, chan: Long): Unit = {
     decreases(pxPosEnd - pxPosStart)
     require(3 <= chan && chan <= 4)
     require(pixels.length % chan == 0)
@@ -176,7 +168,7 @@ object common {
 
   // OK
   @pure
-  def samePixelsForall(pixels: Array[Byte], px: Pixel, pxPosStart: Long, pxPosEnd: Long, chan: Long): Boolean = {
+  def samePixelsForall(pixels: Array[Byte], px: Int, pxPosStart: Long, pxPosEnd: Long, chan: Long): Boolean = {
     decreases(pxPosEnd - pxPosStart)
     require(3 <= chan && chan <= 4)
     require(pixels.length % chan == 0)
@@ -204,7 +196,7 @@ object common {
   @pure
   @opaque
   @inlineOnce
-  def samePixelsForallCombinedLemma(pixels: Array[Byte], px: Pixel, pxPosStart: Long, pxMiddle: Long, pxPosEnd: Long, chan: Long): Unit = {
+  def samePixelsForallCombinedLemma(pixels: Array[Byte], px: Int, pxPosStart: Long, pxMiddle: Long, pxPosEnd: Long, chan: Long): Unit = {
     decreases(pxPosEnd - pxPosStart)
     require(3 <= chan && chan <= 4)
     require(0 <= pxPosStart && pxPosStart < pxMiddle && pxMiddle < pxPosEnd)
@@ -230,7 +222,7 @@ object common {
   @pure
   @opaque
   @inlineOnce
-  def samePixelsForallArraysEq(pixels1: Array[Byte], pixels2: Array[Byte], px: Pixel, pxPosStart: Long, pxPosEnd: Long, chan: Long): Unit = {
+  def samePixelsForallArraysEq(pixels1: Array[Byte], pixels2: Array[Byte], px: Int, pxPosStart: Long, pxPosEnd: Long, chan: Long): Unit = {
     decreases(pxPosEnd - pxPosStart)
     require(3 <= chan && chan <= 4)
     require(0 <= pxPosStart && pxPosStart < pxPosEnd && pxPosEnd <= pixels1.length)
@@ -260,7 +252,7 @@ object common {
   @pure
   @opaque
   @inlineOnce
-  def samePixelsForallUnchangedLemma(pixels1: Array[Byte], pixels2: Array[Byte], px: Pixel, pxPosStart: Long, pxPosEnd: Long, chan: Long): Unit = {
+  def samePixelsForallUnchangedLemma(pixels1: Array[Byte], pixels2: Array[Byte], px: Int, pxPosStart: Long, pxPosEnd: Long, chan: Long): Unit = {
     decreases(pxPosEnd - pxPosStart)
     require(3 <= chan && chan <= 4)
     require(0 <= pxPosStart && pxPosStart < pxPosEnd && pxPosEnd <= pixels1.length)

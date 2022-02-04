@@ -23,7 +23,7 @@ object encoder {
 
   case class RunUpdate(reset: Boolean, run: Long, outPos: Long)
 
-  case class LoopIter(px: Pixel, pxPrev: Pixel, pxPos: Long)
+  case class LoopIter(px: Int, pxPrev: Int, pxPos: Long)
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -98,14 +98,14 @@ object encoder {
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  case class Decoded(var index: Array[Pixel],
+  case class Decoded(var index: Array[Int],
                      var pixels: Array[Byte],
                      var inPos: Long,
                      var pxPos: Long)
 
   def encode(using Ctx): Unit = {
     val bytes = Array.fill(maxSize.toInt)(0: Byte)
-    val index = Array.fill(64)(Pixel.fromInt(0))
+    val index = Array.fill(64)(0)
     write32(bytes, 0, MagicNumber)
     write16(bytes, 4, w.toShort)
     write16(bytes, 6, h.toShort)
@@ -122,12 +122,12 @@ object encoder {
 //    write32(bytes, 8, dataLen.toInt)
   }
 
-  def encodeLoop(index: Array[Pixel], bytes: Array[Byte], pxPrev: Pixel, run0: Long, outPos0: Long, pxPos: Long, decoded: Decoded)(using Ctx): (Pixel, Long) = {
+  def encodeLoop(index: Array[Int], bytes: Array[Byte], pxPrev: Int, run0: Long, outPos0: Long, pxPos: Long, decoded: Decoded)(using Ctx): (Int, Long) = {
     decreases(pixels.length - pxPos)
     require(rangesInv(index.length, bytes.length, run0, outPos0, pxPos))
     require(pxPos < pixels.length && pxPos + chan <= pixels.length)
     require(positionsIneqInv(run0, outPos0, pxPos))
-    require((chan == 3) ==> (pxPrev.a == 255.toByte))
+    require((chan == 3) ==> (Pixel.a(pxPrev) == 255.toByte))
     require(decoded.inPos == outPos0)
     require(decoded.index == index)
     require(decoded.pixels.length == pixels.length)
@@ -149,7 +149,7 @@ object encoder {
     check(HeaderSize <= outPos2 && outPos2 <= maxSize - Padding)
     assert(rangesInv(index.length, bytes.length, run1, outPos2, pxPos))
     assert(positionsIneqInv(run1, outPos2, pxPos + chan))
-    assert((chan == 3) ==> (px.a == 255.toByte))
+    assert((chan == 3) ==> (Pixel.a(px) == 255.toByte))
     assert(decoded.inPos == outPos2)
     assert(samePixels(pixels, px, pxPos, chan))
     assert(decoded.index == index)
@@ -318,14 +318,14 @@ object encoder {
     decodeEncodeProp(bytes, pxPrev, outPos0, outPosRes, old(decoded), pxRes, decoded) // Precond 4 slow (~90s)
   }
 
-  case class EncodeSingleStepResult(px: Pixel, outPos: Long, run: Long, decoded: Decoded)
+  case class EncodeSingleStepResult(px: Int, outPos: Long, run: Long, decoded: Decoded)
 
   @opaque
-  def encodeSingleStep(index: Array[Pixel], bytes: Array[Byte], pxPrev: Pixel, run0: Long, outPos0: Long, pxPos: Long, decoded: Decoded)(using Ctx): (Pixel, Long, Long) = {
+  def encodeSingleStep(index: Array[Int], bytes: Array[Byte], pxPrev: Int, run0: Long, outPos0: Long, pxPos: Long, decoded: Decoded)(using Ctx): (Int, Long, Long) = {
     require(rangesInv(index.length, bytes.length, run0, outPos0, pxPos))
     require(pxPos + chan <= pixels.length)
     require(positionsIneqInv(run0, outPos0, pxPos))
-    require((chan == 3) ==> (pxPrev.a == 255.toByte))
+    require((chan == 3) ==> (Pixel.a(pxPrev) == 255.toByte))
     require(decoded.inPos == outPos0)
     require(decoded.index == index)
     require(decoded.pixels.length == pixels.length)
@@ -338,12 +338,12 @@ object encoder {
     assert(decoded.index.length == 64)
 
     val px =
-      if (chan == 4) Pixel.fromInt(read32(pixels, pxPos.toInt))
+      if (chan == 4) read32(pixels, pxPos.toInt)
       else {
-        assert(chan == 3 && pxPrev.a == 255.toByte)
-        Pixel.fromRgba(pixels(pxPos.toInt), pixels(pxPos.toInt + 1), pixels(pxPos.toInt + 2), pxPrev.a) // TODO: Pour un bug vicieux, changer 255 en 0
+        assert(chan == 3 && Pixel.a(pxPrev) == 255.toByte)
+        Pixel.fromRgba(pixels(pxPos.toInt), pixels(pxPos.toInt + 1), pixels(pxPos.toInt + 2), Pixel.a(pxPrev)) // TODO: Pour un bug vicieux, changer 255 en 0
       }
-    assert((chan == 3) ==> (px.a == pxPrev.a))
+    assert((chan == 3) ==> (Pixel.a(px) == Pixel.a(pxPrev)))
     assert(samePixels(pixels, px, pxPos, chan))
     given li: LoopIter = LoopIter(px, pxPrev, pxPos)
 
@@ -611,7 +611,7 @@ object encoder {
     positionsIneqInv(run1, outPos2, pxPos + chan) &&&
     rangesInv(index.length, bytes.length, run1, outPos2, pxPos) &&&
     // Alpha-channel unchanged when we only have 3 channels
-    ((chan == 3) ==> (px.a == 255.toByte)) &&&
+    ((chan == 3) ==> (Pixel.a(px) == 255.toByte)) &&&
     index == decoded.index &&&
     decoded.pixels.length == pixels.length &&&
     // TODO: Mettre des comms
@@ -625,11 +625,11 @@ object encoder {
 
   // TODO: Name
   def decodeEncodeProp(bytes: Array[Byte],
-                       pxPrev: Pixel,
+                       pxPrev: Int,
                        outPos0: Long,
                        outPos2: Long,
                        decoded: Decoded,
-                       px: Pixel,
+                       px: Int,
                        newDecoded: Decoded)(using Ctx): Boolean = {
     require(outPosInv(outPos0))
     require(outPosInv(outPos2))
@@ -661,12 +661,12 @@ object encoder {
   @opaque
   def decodeEncodePropBytesEqLemma(bytes1: Array[Byte],
                                    bytes2: Array[Byte],
-                                   pxPrev: Pixel,
+                                   pxPrev: Int,
                                    pxPos: Long,
                                    outPos0: Long,
                                    outPos2: Long,
                                    decoded: Decoded,
-                                   px: Pixel,
+                                   px: Int,
                                    newDecoded: Decoded)(using Ctx): Unit = {
     require(bytes1.length == maxSize)
     require(outPosInv(outPos0))
@@ -815,7 +815,7 @@ object encoder {
     val run = run0 + bool2int(px == pxPrev)
     require(run > 0)
 
-    val dummyIndex = Array.fill(64)(Pixel.fromInt(0))
+    val dummyIndex = Array.fill(64)(0)
     given decoder.Ctx = decoder.Ctx(freshCopy(bytes), w, h, chan)
     decoder.doDecodeNext(dummyIndex, pxPrev, outPos0) match {
       case (decoder.DecodedNext.Run(r), inPos) => r + 1 == run && inPos == ru.outPos
@@ -844,7 +844,7 @@ object encoder {
     // TODO: Revister precond
 //    assert(decoder.rangesInv(64, pixels.length, 0, outPos0, pxPos)(using dctx1))
 //    assert(decoder.rangesInv(64, pixels.length, 0, outPos0, pxPos)(using dctx2))
-    val dummyIndex = Array.fill(64)(Pixel.fromInt(0))
+    val dummyIndex = Array.fill(64)(0)
     val res1 = decoder.doDecodeNext(dummyIndex, pxPrev, outPos0)(using dctx1)
     val res2 = decoder.doDecodeNext(dummyIndex, pxPrev, outPos0)(using dctx2)
 
@@ -901,7 +901,7 @@ object encoder {
 
   // TODO: Name: this encodes when px != pxPrev
   @opaque
-  def decodeEncodeNoRunPass(oldIndex: Array[Pixel], index: Array[Pixel], bytes: Array[Byte], outPos1: Long, outPos2: Long, decoded: Decoded)(using Ctx, LoopIter): Decoded = {
+  def decodeEncodeNoRunPass(oldIndex: Array[Int], index: Array[Int], bytes: Array[Byte], outPos1: Long, outPos2: Long, decoded: Decoded)(using Ctx, LoopIter): Decoded = {
     require(oldIndex.length == 64)
     require(index.length == 64)
     require(bytes.length == maxSize)
@@ -957,7 +957,7 @@ object encoder {
     decodeEncodeProp(bytes, pxPrev, outPos1, outPos2, decoded, px, newDecoded)
   }
 
-  def encodeNoRunProp(oldIndex: Array[Pixel], index: Array[Pixel], bytes: Array[Byte], outPos1: Long, outPos2: Long)(using Ctx, LoopIter): Boolean = {
+  def encodeNoRunProp(oldIndex: Array[Int], index: Array[Int], bytes: Array[Byte], outPos1: Long, outPos2: Long)(using Ctx, LoopIter): Boolean = {
     require(oldIndex.length == 64)
     require(index.length == 64)
     require(bytes.length == maxSize)
@@ -981,16 +981,17 @@ object encoder {
     }
   }
 
+  // TODO: Adapt proofs to changed spec
   @opaque
   @inlineOnce
-  def encodeNoRun(index: Array[Pixel], bytes: Array[Byte], outPos1: Long)(using Ctx, LoopIter): Long = {
+  def encodeNoRun(index: Array[Int], bytes: Array[Byte], outPos1: Long)(using Ctx, LoopIter): Long = {
     require(index.length == 64)
     require(bytes.length == maxSize)
     require(outPosInv(outPos1))
     require(pxPosInv(pxPos))
     require(pxPos + chan <= pixels.length)
     require(positionsIneqInv(0, outPos1, pxPos))
-    require((chan == 3) ==> (px.a == pxPrev.a))
+    require((chan == 3) ==> (Pixel.a(px) == Pixel.a(pxPrev)))
 
     withinBoundsLemma(0, outPos1, pxPos)
     assert(outPos1 + chan + 1 <= maxSize)
@@ -1012,11 +1013,11 @@ object encoder {
     } else {
       index(indexPos) = px
 
-      if (px.a == pxPrev.a) {
+      if (Pixel.a(px) == Pixel.a(pxPrev)) {
         // Note: these 5 variables are declared as signed char in the reference implementation
-        val vr = ((px.r.toInt & 0xff) - (pxPrev.r.toInt & 0xff)).toByte
-        val vg = ((px.g.toInt & 0xff) - (pxPrev.g.toInt & 0xff)).toByte
-        val vb = ((px.b.toInt & 0xff) - (pxPrev.b.toInt & 0xff)).toByte
+        val vr = ((Pixel.r(px).toInt & 0xff) - (Pixel.r(pxPrev).toInt & 0xff)).toByte
+        val vg = ((Pixel.g(px).toInt & 0xff) - (Pixel.g(pxPrev).toInt & 0xff)).toByte
+        val vb = ((Pixel.b(px).toInt & 0xff) - (Pixel.b(pxPrev).toInt & 0xff)).toByte
         val vgR = (vr - vg).toByte
         val vgB = (vb - vg).toByte
 
@@ -1038,11 +1039,11 @@ object encoder {
         } else {
           bytes(newOutPos.toInt) = OpRgb.toByte
           newOutPos += 1
-          bytes(newOutPos.toInt) = px.r
+          bytes(newOutPos.toInt) = Pixel.r(px)
           newOutPos += 1
-          bytes(newOutPos.toInt) = px.g
+          bytes(newOutPos.toInt) = Pixel.g(px)
           newOutPos += 1
-          bytes(newOutPos.toInt) = px.b
+          bytes(newOutPos.toInt) = Pixel.b(px)
           newOutPos += 1
         }
 
@@ -1061,13 +1062,13 @@ object encoder {
       } else {
         bytes(newOutPos.toInt) = OpRgba.toByte
         newOutPos += 1
-        bytes(newOutPos.toInt) = px.r
+        bytes(newOutPos.toInt) = Pixel.r(px)
         newOutPos += 1
-        bytes(newOutPos.toInt) = px.g
+        bytes(newOutPos.toInt) = Pixel.g(px)
         newOutPos += 1
-        bytes(newOutPos.toInt) = px.b
+        bytes(newOutPos.toInt) = Pixel.b(px)
         newOutPos += 1
-        bytes(newOutPos.toInt) = px.a
+        bytes(newOutPos.toInt) = Pixel.a(px)
         newOutPos += 1
 
         loopInvUpperOutPosLemma(0, outPos1, pxPos + chan, newOutPos) // For precond. 2 of withinBoundsLemma2
@@ -1115,10 +1116,10 @@ object encoder {
   def pixels(using ctx: Ctx): Array[Byte] = ctx.pixels
 
   @inline
-  def px(using li: LoopIter): Pixel = li.px
+  def px(using li: LoopIter): Int = li.px
 
   @inline
-  def pxPrev(using li: LoopIter): Pixel = li.pxPrev
+  def pxPrev(using li: LoopIter): Int = li.pxPrev
 
   @inline
   def pxPos(using li: LoopIter): Long = li.pxPos
