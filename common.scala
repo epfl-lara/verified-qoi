@@ -498,4 +498,110 @@ object common {
     }.ensuring(_ => arraysEq(arr, upd, i + 1, j))
   }
 
+  // OK
+  @pure
+  @opaque
+  @inlineOnce
+  def updatedAtArraysEq[T](arr: Array[T], i: Long, t1: T, t2: T): Unit = {
+    require(0 <= i && i < arr.length)
+    require(i + 1 < arr.length)
+    val upd = arr.updated(i.toInt, t1).updated(i.toInt + 1, t2)
+
+    {
+      val updt1 = arr.updated(i.toInt, t1)
+      updatedAtArraysEq(arr, i, t1)
+      assert(arraysEq(arr, updt1, 0, i))
+
+      updatedAtArraysEq(updt1, i + 1, t2)
+      assert(arraysEq(updt1, upd, 0, i + 1))
+
+      arraysEqDropRightLemma(updt1, upd, 0, i, i + 1)
+      arraysEqTransLemma(arr, updt1, upd, 0, i)
+      check(arraysEq(arr, upd, 0, i))
+    }.ensuring { _ =>
+      arraysEq(arr, upd, 0, i)
+    }
+  }
+
+  // OK
+  @pure
+  @opaque
+  @inlineOnce
+  def updatedAtArraysEq[T](arr: Array[T], i: Long, t1: T, t2: T, t3: T): Unit = {
+    require(0 <= i && i < arr.length)
+    require(i + 1 < arr.length)
+    require(i + 2 < arr.length)
+    val upd = arr.updated(i.toInt, t1).updated(i.toInt + 1, t2).updated(i.toInt + 2, t3)
+
+    {
+      val updt1t2 = arr.updated(i.toInt, t1).updated(i.toInt + 1, t2)
+      updatedAtArraysEq(arr, i, t1, t2)
+      assert(arraysEq(arr, updt1t2, 0, i))
+
+      updatedAtArraysEq(updt1t2, i + 2, t3)
+      assert(arraysEq(updt1t2, upd, 0, i + 2))
+
+      arraysEqDropRightLemma(updt1t2, upd, 0, i, i + 2)
+      arraysEqTransLemma(arr, updt1t2, upd, 0, i)
+      check(arraysEq(arr, upd, 0, i))
+    }.ensuring { _ =>
+      arraysEq(arr, upd, 0, i)
+    }
+  }
+
+  // OK
+  @pure
+  @opaque
+  @inlineOnce
+  def updatedAtArraysEq[T](arr: Array[T], i: Long, t1: T, t2: T, t3: T, t4: T): Unit = {
+    require(0 <= i && i < arr.length)
+    require(i + 1 < arr.length)
+    require(i + 2 < arr.length)
+    require(i + 3 < arr.length)
+    val upd = arr.updated(i.toInt, t1).updated(i.toInt + 1, t2).updated(i.toInt + 2, t3).updated(i.toInt + 3, t4)
+
+    {
+      val updt1t2t3 = arr.updated(i.toInt, t1).updated(i.toInt + 1, t2).updated(i.toInt + 2, t3)
+      updatedAtArraysEq(arr, i, t1, t2, t3)
+      assert(arraysEq(arr, updt1t2t3, 0, i))
+
+      updatedAtArraysEq(updt1t2t3, i + 3, t4)
+      assert(arraysEq(updt1t2t3, upd, 0, i + 3))
+
+      arraysEqDropRightLemma(updt1t2t3, upd, 0, i, i + 3)
+      arraysEqTransLemma(arr, updt1t2t3, upd, 0, i)
+      check(arraysEq(arr, upd, 0, i))
+    }.ensuring { _ =>
+      arraysEq(arr, upd, 0, i)
+    }
+  }
+
+  // OK
+  @pure
+  @opaque
+  @inlineOnce
+  def updatedAtArraysEq[T](arr: Array[T], i: Long, t1: T, t2: T, t3: T, t4: T, t5: T): Unit = {
+    require(0 <= i && i < arr.length)
+    require(i + 1 < arr.length)
+    require(i + 2 < arr.length)
+    require(i + 3 < arr.length)
+    require(i + 4 < arr.length)
+    val upd = arr.updated(i.toInt, t1).updated(i.toInt + 1, t2).updated(i.toInt + 2, t3).updated(i.toInt + 3, t4).updated(i.toInt + 4, t5)
+
+    {
+      val updt1t2t3t4 = arr.updated(i.toInt, t1).updated(i.toInt + 1, t2).updated(i.toInt + 2, t3).updated(i.toInt + 3, t4)
+      updatedAtArraysEq(arr, i, t1, t2, t3, t4)
+      assert(arraysEq(arr, updt1t2t3t4, 0, i))
+
+      updatedAtArraysEq(updt1t2t3t4, i + 4, t5)
+      assert(arraysEq(updt1t2t3t4, upd, 0, i + 4))
+
+      arraysEqDropRightLemma(updt1t2t3t4, upd, 0, i, i + 4)
+      arraysEqTransLemma(arr, updt1t2t3t4, upd, 0, i)
+      check(arraysEq(arr, upd, 0, i))
+    }.ensuring { _ =>
+      arraysEq(arr, upd, 0, i)
+    }
+  }
+
 }
