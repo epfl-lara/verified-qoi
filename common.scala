@@ -1,7 +1,7 @@
 import stainless.*
 import stainless.lang.*
 import stainless.collection.*
-import stainless.annotation.{opaque, pure, inlineOnce}
+import stainless.annotation.{ignore, inlineOnce, opaque, pure}
 import stainless.proof.*
 
 object common {
@@ -64,13 +64,6 @@ object common {
   @inline
   def bool2int(b: Boolean): Int = if (b) 1 else 0
 
-  // TODO: :)
-  @opaque
-  @inlineOnce
-  def sorry(b: Boolean): Unit = {
-    ??? : Unit
-  }.ensuring(_ => b)
-
   // OK
   @opaque
   @inlineOnce
@@ -79,6 +72,15 @@ object common {
     require(3 <= chan && chan <= 4)
     require(x % chan == 0)
   }.ensuring(_ => (x + chan) % chan == 0)
+
+  // OK
+  @opaque
+  @inlineOnce
+  def modMultLemma(a: Long, b: Long, chan: Long): Unit = {
+    require(3 <= chan && chan <= 4)
+    require(0 <= a && a <= Short.MaxValue)
+    require(0 <= b && b <= Short.MaxValue)
+  }.ensuring((a * b * chan) % chan == 0)
 
   // OK
   @opaque
@@ -348,6 +350,16 @@ object common {
       check(arr1(at.toInt) == arr2(at.toInt))
     }
   }.ensuring(_ => arr1(at.toInt) == arr2(at.toInt))
+
+  // This function reduces at compile-time to calls to arraysEqAtIndex, we ignore it as such.
+  @ignore
+  inline def arraysEqAtIndices[T](arr1: Array[T], arr2: Array[T], from: Long, to: Long, inline fromIndice: Long, inline toIndice: Long): Unit = {
+    inline if (fromIndice >= toIndice) ()
+    else {
+      arraysEqAtIndex(arr1, arr2, from, to, fromIndice)
+      arraysEqAtIndices(arr1, arr2, from, to, fromIndice + 1, toIndice)
+    }
+  }
 
   // OK
   @pure

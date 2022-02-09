@@ -393,6 +393,95 @@ object decoder {
   }
 
   // OK
+  @pure
+  def decodeHeader(bytes: Array[Byte]): Option[(Long, Long, Long)] = {
+    require(bytes.length > HeaderSize + Padding)
+
+    val magic = read32(bytes, 0)
+    val w = read32(bytes, 4)
+    val h = read32(bytes, 8)
+    val chan = bytes(12)
+
+    if (0 < w && w < 8192 && 0 < h && h < 8192 && magic == MagicNumber && 3 <= chan && chan <= 4)
+      Some((w.toLong, h.toLong, chan.toLong))
+    else
+      None()
+  }
+
+  // OK
+  @pure
+  @opaque
+  @inlineOnce
+  def decodeHeaderBytesEqLemma(bytes: Array[Byte], bytes2: Array[Byte]): Unit = {
+    require(bytes.length > HeaderSize + Padding)
+    require(bytes.length == bytes2.length)
+    require(arraysEq(bytes, bytes2, 0, HeaderSize))
+
+    val res1 = decodeHeader(bytes)
+    val res2 = decodeHeader(bytes2)
+
+    {
+      arraysEqAtIndices(bytes, bytes2, 0, HeaderSize, 0, 14)
+      check(res1 == res2)
+    }.ensuring(_ => res1 == res2)
+  }
+
+  // OK
+  @pure
+  def decode(bytes: Array[Byte], to: Long): OptionMut[(Array[Byte], Long, Long, Long)] = {
+    require(bytes.length > HeaderSize + Padding)
+    require(HeaderSize < to && to <= bytes.length - Padding)
+
+    decodeHeader(bytes) match {
+      case Some((w, h, chan)) =>
+        assert(0 < w && w < 8192)
+        assert(0 < h && h < 8192)
+        assert(3 <= chan && chan <= 4)
+        val pixels = Array.fill(w.toInt * h.toInt * chan.toInt)(0: Byte)
+        val px = Pixel.fromRgba(0, 0, 0, 255.toByte)
+        val index = Array.fill(64)(0)
+        val decIter = decodeRange(index, pixels, px, HeaderSize, to, 0)(using Ctx(bytes, w, h, chan))
+        SomeMut((pixels, w, h, chan))
+
+      case None() => NoneMut()
+    }
+  }
+
+  // OK
+  @pure
+  def decode(bytes: Array[Byte]): OptionMut[(Array[Byte], Long, Long, Long)] = {
+    require(bytes.length > HeaderSize + Padding)
+    decode(bytes, bytes.length - Padding)
+  }
+
+  // OK
+  @pure
+  @opaque
+  @inlineOnce
+  def decodeLemma(to: Long)(using Ctx): Unit = {
+    require(HeaderSize < to && to <= bytes.length - Padding)
+    val readMagic = read32(bytes, 0)
+    val readW = read32(bytes, 4)
+    val readH = read32(bytes, 8)
+    val readChan = bytes(12)
+    require(readMagic == MagicNumber)
+    require(readW == w.toInt)
+    require(readH == h.toInt)
+    require(readChan.toLong == chan)
+
+    val SomeMut((decodedPixels, ww, hh, cchan)) = decode(bytes, to)
+    val pixels = Array.fill(w.toInt * h.toInt * chan.toInt)(0: Byte)
+    val px = Pixel.fromRgba(0, 0, 0, 255.toByte)
+    val index = Array.fill(64)(0)
+
+    {
+      ()
+    }.ensuring { _ =>
+      decodedPixels == decodeRangePure(index, pixels, px, HeaderSize, to, 0)._2
+    }
+  }
+
+  // OK
   def decodeRange(index: Array[Int], pixels: Array[Byte], pxPrev: Int,
                   inPos0: Long, untilInPos: Long, pxPos0: Long)(using Ctx): DecodingIteration = {
     decreases(untilInPos - inPos0)
