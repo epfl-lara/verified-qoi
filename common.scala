@@ -1,8 +1,9 @@
 import stainless.*
 import stainless.lang.*
 import stainless.collection.*
-import stainless.annotation.{ignore, inlineOnce, opaque, pure}
+import stainless.annotation.{cCode, extern, ghost, ignore, inlineOnce, mutable, opaque, pure}
 import stainless.proof.*
+import StaticChecks.*
 
 object common {
   val OpIndex = 0x00
@@ -14,15 +15,17 @@ object common {
 
   val Mask2 = 0xc0
 
-  //  val MagicNumber = ('q'.toByte << 24) | ('o'.toByte << 16) | ('i'.toByte << 8) | 'f'.toByte
   val MagicNumber = 1903126886
   val HeaderSize = 14
   val Padding = 8
 
+  val MaxWidth = 8192
+  val MaxHeight = 8192
+
   object Pixel {
-    def r(px: Int): Byte = ((px >> 24) & 0xff).toByte
-    def g(px: Int): Byte = ((px >> 16) & 0xff).toByte
-    def b(px: Int): Byte = ((px >> 8) & 0xff).toByte
+    def r(px: Int): Byte = ((px >>> 24) & 0xff).toByte
+    def g(px: Int): Byte = ((px >>> 16) & 0xff).toByte
+    def b(px: Int): Byte = ((px >>> 8) & 0xff).toByte
     def a(px: Int): Byte = (px & 0xff).toByte
 
     def fromRgba(r: Byte, g: Byte, b: Byte, a: Byte): Int =
@@ -35,19 +38,46 @@ object common {
       fromRgba(r, g, b, a)
   }
 
+  sealed trait OptionMut[@mutable T]
+  case class SomeMut[@mutable T](v: T) extends OptionMut[T]
+  case class NoneMut[@mutable T]() extends OptionMut[T]
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  @pure
+  @cCode.function(
+    code =
+      """array_int8 __FUNCTION__(int32_t length) {
+        |  int8_t* data = malloc(length);
+        |  if (!data) {
+        |    exit(-1);
+        |  }
+        |  memset(data, 0, length);
+        |  return (array_int8) { .data = data, .length = length };
+        |}""",
+    headerIncludes = "stdlib.h",
+    cIncludes = ""
+  )
+  def allocArray(size: Int): Array[Byte] = {
+    Array.fill(size)(0: Byte)
+  }.ensuring(_.length == size)
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+
   def colorPos(px: Int): Int = {
     ((Pixel.r(px) & 0xff) * 3 + (Pixel.g(px) & 0xff) * 5 + (Pixel.b(px) & 0xff) * 7 + (Pixel.a(px) & 0xff) * 11) % 64
   }.ensuring(x => x >= 0 && x < 64)
 
   def write16(data: Array[Byte], i: Int, value: Short): Unit = {
     require(data.length >= 2 && i >= 0 && i < data.length - 1)
-    data(i) = ((0xff00 & value) >> 8).toByte
+    data(i) = ((0xff00 & value) >>> 8).toByte
     data(i + 1) = (0xff & value).toByte
   } ensuring(_ => read16(data, i) == value && old(data).length == data.length)
 
   def write32(data: Array[Byte], i: Int, value: Int): Unit = {
     require(data.length >= 4 && i >= 0 && i < data.length - 3)
-    write16(data, i, (value >> 16).toShort)
+    write16(data, i, (value >>> 16).toShort)
     write16(data, i + 2, value.toShort)
   } ensuring(_ => read32(data, i) == value && old(data).length == data.length)
 
@@ -64,25 +94,30 @@ object common {
   @inline
   def bool2int(b: Boolean): Int = if (b) 1 else 0
 
-  // OK
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  @ghost
   @opaque
   @inlineOnce
   def modSumLemma(x: Long, chan: Long): Unit = {
     require(0 <= x && x <= Long.MaxValue - chan)
     require(3 <= chan && chan <= 4)
     require(x % chan == 0)
+    ()
   }.ensuring(_ => (x + chan) % chan == 0)
 
-  // OK
+  @ghost
   @opaque
   @inlineOnce
   def modMultLemma(a: Long, b: Long, chan: Long): Unit = {
     require(3 <= chan && chan <= 4)
     require(0 <= a && a <= Short.MaxValue)
     require(0 <= b && b <= Short.MaxValue)
-  }.ensuring((a * b * chan) % chan == 0)
+    ()
+  }.ensuring(_ => (a * b * chan) % chan == 0)
 
-  // OK
+  @ghost
   @opaque
   @inlineOnce
   def modLeqLemma(x: Long, y: Long, chan: Long): Unit = {
@@ -91,9 +126,10 @@ object common {
     require(3 <= chan && chan <= 4)
     require(x % chan == 0)
     require(y % chan == 0)
+    ()
   }.ensuring(_ => x + chan <= y)
 
-  // OK
+  @ghost
   @opaque
   @inlineOnce
   def modLtLemma(x: Long, y: Long, chan: Long): Unit = {
@@ -103,9 +139,10 @@ object common {
     require(x + chan <= y)
     require(x % chan == 0)
     require(y % chan == 0)
+    ()
   }.ensuring(_ => x < y)
 
-  // OK
+  @ghost
   @pure
   def samePixels(pixels: Array[Byte], px: Int, pxPos: Long, chan: Long): Boolean = {
     require(3 <= chan && chan <= 4)
@@ -122,7 +159,7 @@ object common {
     ((chan == 4) ==> (pixels(pxPos.toInt + 3) == Pixel.a(px)))
   }
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -133,7 +170,7 @@ object common {
     require(samePixels(pixels, px, pxPos, chan))
   }.ensuring(_ => samePixelsForall(pixels, px, pxPos, pxPos + chan, chan))
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -168,7 +205,7 @@ object common {
     samePixelsForall(pixels, px, pxPosStart, pxPosEnd + chan, chan)
   }
 
-  // OK
+  @ghost
   @pure
   def samePixelsForall(pixels: Array[Byte], px: Int, pxPosStart: Long, pxPosEnd: Long, chan: Long): Boolean = {
     decreases(pxPosEnd - pxPosStart)
@@ -194,7 +231,7 @@ object common {
     // forall[Int](i => (pxPosStart / chan <= i && i < pxPosEnd / chan) ==> samePixels(pixels, px, chan * i))
   }
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -220,7 +257,7 @@ object common {
     }
   }.ensuring(_ => samePixelsForall(pixels, px, pxPosStart, pxPosEnd, chan))
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -250,7 +287,7 @@ object common {
     }
   }.ensuring(_ => arraysEq(pixels1, pixels2, pxPosStart, pxPosEnd))
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -282,7 +319,7 @@ object common {
   }.ensuring(_ => samePixelsForall(pixels2, px, pxPosStart, pxPosEnd, chan))
 
 
-  // OK
+  @ghost
   @pure
   def arraysEq[T](arr1: Array[T], arr2: Array[T], from: Long, until: Long): Boolean = {
     decreases(until - from)
@@ -292,7 +329,7 @@ object common {
     else arr1(from.toInt) == arr2(from.toInt) && arraysEq(arr1, arr2, from + 1, until)
   }
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -313,7 +350,7 @@ object common {
     }
   }.ensuring(_ => arraysEq(arr1, arr2, from, to))
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -333,7 +370,7 @@ object common {
     }
   }.ensuring(_ => arraysEq(arr1, arr2, from, to))
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -352,7 +389,7 @@ object common {
   }.ensuring(_ => arr1(at.toInt) == arr2(at.toInt))
 
   // This function reduces at compile-time to calls to arraysEqAtIndex, we ignore it as such.
-  @ignore
+  @ignore  @ghost
   inline def arraysEqAtIndices[T](arr1: Array[T], arr2: Array[T], from: Long, to: Long, inline fromIndice: Long, inline toIndice: Long): Unit = {
     inline if (fromIndice >= toIndice) ()
     else {
@@ -361,7 +398,7 @@ object common {
     }
   }
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -378,7 +415,7 @@ object common {
     }
   }.ensuring(_ => arraysEq(arr2, arr1, from, to))
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -396,7 +433,7 @@ object common {
     }
   }.ensuring(_ => arraysEq(arr1, arr2, from, middle))
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -414,7 +451,7 @@ object common {
     }
   }.ensuring(_ => arraysEq(arr1, arr2, middle, to))
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -433,7 +470,7 @@ object common {
     }
   }.ensuring(_ => arraysEq(arr1, arr3, from, to))
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -450,7 +487,7 @@ object common {
     }
   }.ensuring(_ => arraysEq(arr1, arr2, from, to))
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -467,7 +504,7 @@ object common {
     }
   }
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -487,7 +524,7 @@ object common {
     }.ensuring(_ => arraysEq(arr, upd, j, i))
   }
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -510,7 +547,7 @@ object common {
     }.ensuring(_ => arraysEq(arr, upd, i + 1, j))
   }
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -535,7 +572,7 @@ object common {
     }
   }
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -561,7 +598,7 @@ object common {
     }
   }
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -588,7 +625,7 @@ object common {
     }
   }
 
-  // OK
+  @ghost
   @pure
   @opaque
   @inlineOnce
@@ -615,5 +652,4 @@ object common {
       arraysEq(arr, upd, 0, i)
     }
   }
-
 }
