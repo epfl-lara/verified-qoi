@@ -245,7 +245,7 @@ object encoder {
       }
       @ghost val bytesPreRec = freshCopy(bytes)
       @ghost val decodedPreRec = freshCopy(decoded)
-      // We do not destructure `res` here, as this causes GenC to emit extra-instruction, which hinder TCE by gcc and clang.
+      // We do not de-structure `res` here, as this causes GenC to emit extra-instruction, which hinder TCE by gcc and clang.
       val res = encodeLoop(index, bytes, px, run1, outPos2, pxPosPlusChan, decoded)
 
       ghostExpr {
@@ -355,21 +355,22 @@ object encoder {
 
       res
     } else {
+      @ghost val bytesPrePadded = freshCopy(bytes)
       bytes(outPos2.toInt + Padding - 1) = 1
       ghostExpr {
         check(outPos0 < outPos2)
 
-        check(oldBytes.length == bytes.length)
-        updatedAtArraysEq(oldBytes, outPos2.toInt + Padding - 1, 1)
-        arraysEqDropRightLemma(oldBytes, bytes, 0, outPos0, outPos2.toInt + Padding - 1)
-        check(arraysEq(oldBytes, bytes, 0, outPos0))
+        // Showing arraysEq(oldBytes, bytes, 0, outPos0)
+        check(oldBytes.length == bytesPrePadded.length)
+        check(bytesPrePadded.length == bytes.length)
+        assert(arraysEq(oldBytes, bytesPrePadded, 0, outPos0))
 
-        assert(decodeLoopEncodeProp(oldBytes, pxPrev, outPos0, outPos2, oldDecoded, px, decoded))
-        // The two arraysEqX are for the precond arraysEq(oldBytes, bytes, outPos0, outPos2)
-        arraysEqDropRightLemma(oldBytes, bytes, 0, outPos2, outPos2.toInt + Padding - 1)
-        arraysEqDropLeftLemma(oldBytes, bytes, 0, outPos0, outPos2)
-        decodeLoopEncodePropBytesEqLemma(oldBytes, bytes, pxPrev, outPos0, outPos2, oldDecoded, px, decoded)
-        check(decodeLoopEncodeProp(bytes, pxPrev, outPos0, outPos2, oldDecoded, px, decoded))
+        updatedAtArraysEq(bytesPrePadded, outPos2 + Padding - 1, 1)
+        assert(arraysEq(bytesPrePadded, bytes, 0, outPos2 + Padding - 1))
+        arraysEqDropRightLemma(bytesPrePadded, bytes, 0, outPos0, outPos2 + Padding - 1)
+        assert(arraysEq(bytesPrePadded, bytes, 0, outPos0))
+        arraysEqTransLemma(oldBytes, bytesPrePadded, bytes, 0, outPos0)
+        check(arraysEq(oldBytes, bytes, 0, outPos0))
 
         assert(pxPos + chan == pixels.length)
         assert(pxPos == pixels.length - chan)
@@ -379,6 +380,14 @@ object encoder {
         assert(decoded.pxPos + chan * run1 == pxPos + chan)
         assert(decoded.pxPos == pxPos + chan)
         check(decoded.pxPos == pxEnd + chan)
+
+        // Showing decodeLoopEncodeProp(bytes, pxPrev, outPos0, outPosRes, oldDecoded, pxRes, decoded)
+        assert(decodeLoopEncodeProp(bytesPrePadded, pxPrev, outPos0, outPos2, oldDecoded, px, decoded))
+        // The two arraysEqX are for the precond arraysEq(oldBytes, bytes, outPos0, outPos2)
+        arraysEqDropRightLemma(bytesPrePadded, bytes, 0, outPos2, outPos2 + Padding - 1)
+        arraysEqDropLeftLemma(bytesPrePadded, bytes, 0, outPos0, outPos2)
+        decodeLoopEncodePropBytesEqLemma(bytesPrePadded, bytes, pxPrev, outPos0, outPos2, oldDecoded, px, decoded)
+        check(decodeLoopEncodeProp(bytes, pxPrev, outPos0, outPos2, oldDecoded, px, decoded))
       }
       EncodingIteration(px, outPos2)
     }
@@ -411,7 +420,7 @@ object encoder {
     bytes(12) = chan.toByte
     assert(bytes(12) == chan.toByte)
 
-    bytes(13) = 0 // Colorspace (unused)
+    bytes(13) = 0 // Color-space (unused)
   }.ensuring { _ =>
     old(bytes).length == bytes.length &&&
     read32(bytes, 0) == MagicNumber &&&
@@ -435,7 +444,7 @@ object encoder {
     require(decoded.pxPos + chan <= decoded.pixels.length)
     require(decoded.pxPos + chan * run0 == pxPos)
     require(arraysEq(decoded.pixels, pixels, 0, decoded.pxPos))
-    require((run0 > 0) ==> samePixelsForall(pixels, pxPrev, decoded.pxPos, pxPos, chan)) // En gros, que depuis dec.pxPos jusqu'a pxPos, on a bien pxPrev (run ne triche pas)
+    require((run0 > 0) ==> samePixelsForall(pixels, pxPrev, decoded.pxPos, pxPos, chan))
 
     assert(decoded.index.length == 64)
 
@@ -622,7 +631,6 @@ object encoder {
 
       given decoder.Ctx = decoder.Ctx(freshCopy(bytes), w, h, chan)
 
-      // TODO: Does it change something to have that wrapped in a block?
       val (ix3, pix3, decIter3) = {
         assert(decoded.pixels.length == pixels.length)
         assert(pxPosInv(decoded.pxPos))
@@ -904,10 +912,6 @@ object encoder {
       ghostExpr {
         check(newOutPos <= maxSize - Padding)
         check(encodeNoRunProp(oldIndex, index, bytes, outPos1, newOutPos))
-
-        // TODO: U:no-inc:smt-z3:z3 tactic.default_tactic=smt sat.euf=true finds an invalid counter-example for the following assertion
-        //   (smt-z3 and smt-cvc4 time out)
-        // check(arraysEq(oldBytes, bytes, 0, outPos1))
         updatedAtArraysEq(oldBytes, outPos1, b1.toByte)
         check(arraysEq(oldBytes, bytes, 0, outPos1))
       }
@@ -1161,7 +1165,7 @@ object encoder {
     require(decodeLoopEncodeProp(bytes1, pxPrev, outPos0, outPos2, decoded, px, newDecoded))
     require(bytes1.length == bytes2.length)
     require(arraysEq(bytes1, bytes2, outPos0, outPos2))
-    require(0 <= newDecoded.pxPos && newDecoded.pxPos < decoded.pixels.length && newDecoded.pxPos + chan <= decoded.pixels.length)
+    require(pxPosInv(newDecoded.pxPos))
 
     val ctx1 = decoder.Ctx(freshCopy(bytes1), w, h, chan)
     assert(decoded.pixels.length % chan == 0)
@@ -1169,7 +1173,7 @@ object encoder {
     assert(outPos0 <= bytes1.length)
     val (ix1, pix1, decIter1) = decoder.decodeLoopPure(decoded.index, decoded.pixels, pxPrev, outPos0, outPos2, decoded.pxPos)(using ctx1)
     assert(decIter1.pxPos == newDecoded.pxPos)
-    assert(decIter1.pxPos < pixels.length && decIter1.pxPos + chan <= pixels.length)
+    assert(decIter1.pxPos <= pixels.length)
     assert(decIter1.inPos == outPos2)
 
     val ctx2 = decoder.Ctx(freshCopy(bytes2), w, h, chan)

@@ -147,7 +147,7 @@ object decoder {
         assert(pxPosPlusChan == pixels.length)
 
         if (pxPosOrig != pxPos) {
-          assert(samePixelsForall(pixels, pxPrev, pxPosOrig, pxPosPlusChan, chan)) // From before
+          assert(samePixelsForall(pixels, pxPrev, pxPosOrig, pxPosPlusChan, chan))
           check(samePixelsForall(pixels, pxPrev, pxPosOrig, pixels.length, chan))
         } else {
           check(samePixelsForall(pixels, pxPrev, pxPosOrig, pixels.length, chan))
@@ -287,7 +287,7 @@ object decoder {
     require(pxPosInv(pxPos0))
     require(pxPos0 + chan <= pixels.length)
 
-    // Note: un run de 0 est possible: cela signifie que l'on répète 1 fois le px précédent
+    // Note: a run of 0 is possible: it means that we repeat the previous pixel once.
 
     val pxPos0PlusChan = pxPos0 + chan
     ghostExpr {
@@ -741,7 +741,7 @@ object decoder {
 
     val ctx2 = Ctx(freshCopy(bytes2), w, h, chan)
     val (ix1, pix1, decIter1) = decodeLoopPure(index, pixels, pxPrev, inPos0, untilInPos, pxPos0)(using ctx1)
-    require(decIter1.pxPos < pixels.length && decIter1.pxPos + chan <= pixels.length)
+    require(decIter1.pxPos <= pixels.length)
     require(decIter1.inPos == untilInPos)
     val (ix2, pix2, decIter2) = decodeLoopPure(index, pixels, pxPrev, inPos0, untilInPos, pxPos0)(using ctx2)
 
@@ -974,7 +974,7 @@ object decoder {
     {
       assert(bytes(inPos0.toInt) == bytes2(inPos0.toInt))
       check(inPos1 == inPos2)
-      check(res1 == res2) // smt-z3 struggles here, use smt-cvc4 for this one
+      check(res1 == res2)
       ()
     }.ensuring { _ =>
       res1 == res2 &&&
