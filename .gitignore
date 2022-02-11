@@ -1,5 +1,6 @@
 misc
-genc/verified-qoiconv
+genc/genc-qoiconv
+genc/genc-qoibench
 genc/stainless.c
 genc/stainless.h
 results/
