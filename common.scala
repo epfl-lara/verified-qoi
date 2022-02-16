@@ -336,57 +336,57 @@ object common {
   @pure
   @opaque
   @inlineOnce
-  def arraysEqCombinedLemma[T](arr1: Array[T], arr2: Array[T], from: Long, middle: Long, to: Long): Unit = {
-    decreases(to - from)
+  def arraysEqCombinedLemma[T](arr1: Array[T], arr2: Array[T], from: Long, middle: Long, until: Long): Unit = {
+    decreases(until - from)
     require(arr1.length == arr2.length)
-    require(0 <= from && from < middle && middle < to && to <= arr1.length)
+    require(0 <= from && from < middle && middle < until && until <= arr1.length)
     require(arraysEq(arr1, arr2, from, middle))
-    require(arraysEq(arr1, arr2, middle, to))
+    require(arraysEq(arr1, arr2, middle, until))
 
     if (middle == from + 1) {
-      check(arraysEq(arr1, arr2, from, to))
+      check(arraysEq(arr1, arr2, from, until))
     } else {
       assert(arraysEq(arr1, arr2, from + 1, middle))
-      arraysEqCombinedLemma(arr1, arr2, from + 1, middle, to)
-      assert(arraysEq(arr1, arr2, from + 1, to))
-      check(arraysEq(arr1, arr2, from, to))
+      arraysEqCombinedLemma(arr1, arr2, from + 1, middle, until)
+      assert(arraysEq(arr1, arr2, from + 1, until))
+      check(arraysEq(arr1, arr2, from, until))
     }
-  }.ensuring(_ => arraysEq(arr1, arr2, from, to))
+  }.ensuring(_ => arraysEq(arr1, arr2, from, until))
 
   @ghost
   @pure
   @opaque
   @inlineOnce
-  def arraysEqCombinedLemma2[T](arr1: Array[T], arr2: Array[T], from: Long, middle: Long, to: Long): Unit = {
-    decreases(to - from)
+  def arraysEqCombinedLemma2[T](arr1: Array[T], arr2: Array[T], from: Long, middle: Long, until: Long): Unit = {
+    decreases(until - from)
     require(arr1.length == arr2.length)
-    require(0 <= from && from <= middle && middle <= to && to <= arr1.length)
-    require(from < to)
+    require(0 <= from && from <= middle && middle <= until && until <= arr1.length)
+    require(from < until)
     require(arraysEq(arr1, arr2, from, middle))
-    require(arraysEq(arr1, arr2, middle, to))
+    require(arraysEq(arr1, arr2, middle, until))
 
-    if (from == middle || middle == to) {
-      check(arraysEq(arr1, arr2, from, to))
+    if (from == middle || middle == until) {
+      check(arraysEq(arr1, arr2, from, until))
     } else {
-      arraysEqCombinedLemma(arr1, arr2, from, middle, to)
-      check(arraysEq(arr1, arr2, from, to))
+      arraysEqCombinedLemma(arr1, arr2, from, middle, until)
+      check(arraysEq(arr1, arr2, from, until))
     }
-  }.ensuring(_ => arraysEq(arr1, arr2, from, to))
+  }.ensuring(_ => arraysEq(arr1, arr2, from, until))
 
   @ghost
   @pure
   @opaque
   @inlineOnce
-  def arraysEqAtIndex[T](arr1: Array[T], arr2: Array[T], from: Long, to: Long, at: Long): Unit = {
-    decreases(to - at)
+  def arraysEqAtIndex[T](arr1: Array[T], arr2: Array[T], from: Long, until: Long, at: Long): Unit = {
+    decreases(until - at)
     require(arr1.length == arr2.length)
-    require(0 <= from && from <= to && to <= arr1.length)
-    require(arraysEq(arr1, arr2, from, to))
-    require(from <= at && at < to)
+    require(0 <= from && from <= until && until <= arr1.length)
+    require(arraysEq(arr1, arr2, from, until))
+    require(from <= at && at < until)
     if (at == from) {
       check(arr1(at.toInt) == arr2(at.toInt))
     } else {
-      arraysEqAtIndex(arr1, arr2, from + 1, to, at)
+      arraysEqAtIndex(arr1, arr2, from + 1, until, at)
       check(arr1(at.toInt) == arr2(at.toInt))
     }
   }.ensuring(_ => arr1(at.toInt) == arr2(at.toInt))
@@ -394,11 +394,11 @@ object common {
   // This function reduces at compile-time to calls to arraysEqAtIndex, we ignore it as such.
   @ignore
   @ghost
-  inline def arraysEqAtIndices[T](arr1: Array[T], arr2: Array[T], from: Long, to: Long, inline fromIndice: Long, inline toIndice: Long): Unit = {
+  inline def arraysEqAtIndices[T](arr1: Array[T], arr2: Array[T], from: Long, until: Long, inline fromIndice: Long, inline toIndice: Long): Unit = {
     inline if (fromIndice >= toIndice) ()
     else {
-      arraysEqAtIndex(arr1, arr2, from, to, fromIndice)
-      arraysEqAtIndices(arr1, arr2, from, to, fromIndice + 1, toIndice)
+      arraysEqAtIndex(arr1, arr2, from, until, fromIndice)
+      arraysEqAtIndices(arr1, arr2, from, until, fromIndice + 1, toIndice)
     }
   }
 
@@ -406,33 +406,33 @@ object common {
   @pure
   @opaque
   @inlineOnce
-  def arraysEqSymLemma[T](arr1: Array[T], arr2: Array[T], from: Long, to: Long): Unit = {
-    decreases(to - from)
+  def arraysEqSymLemma[T](arr1: Array[T], arr2: Array[T], from: Long, until: Long): Unit = {
+    decreases(until - from)
     require(arr1.length == arr2.length)
-    require(0 <= from && from <= to && to <= arr1.length)
-    require(arraysEq(arr1, arr2, from, to))
-    if (from == to) {
-      check(arraysEq(arr2, arr1, from, to))
+    require(0 <= from && from <= until && until <= arr1.length)
+    require(arraysEq(arr1, arr2, from, until))
+    if (from == until) {
+      check(arraysEq(arr2, arr1, from, until))
     } else {
-      arraysEqSymLemma(arr1, arr2, from + 1, to)
-      check(arraysEq(arr2, arr1, from, to))
+      arraysEqSymLemma(arr1, arr2, from + 1, until)
+      check(arraysEq(arr2, arr1, from, until))
     }
-  }.ensuring(_ => arraysEq(arr2, arr1, from, to))
+  }.ensuring(_ => arraysEq(arr2, arr1, from, until))
 
   @ghost
   @pure
   @opaque
   @inlineOnce
-  def arraysEqDropRightLemma[T](arr1: Array[T], arr2: Array[T], from: Long, middle: Long, to: Long): Unit = {
-    decreases(to - from)
+  def arraysEqDropRightLemma[T](arr1: Array[T], arr2: Array[T], from: Long, middle: Long, until: Long): Unit = {
+    decreases(until - from)
     require(arr1.length == arr2.length)
-    require(0 <= from && from <= middle && middle <= to && to <= arr1.length)
-    require(arraysEq(arr1, arr2, from, to))
+    require(0 <= from && from <= middle && middle <= until && until <= arr1.length)
+    require(arraysEq(arr1, arr2, from, until))
 
     if (middle == from) {
-      check(arraysEq(arr1, arr2, from, to))
+      check(arraysEq(arr1, arr2, from, until))
     } else {
-      arraysEqDropRightLemma(arr1, arr2, from + 1, middle, to)
+      arraysEqDropRightLemma(arr1, arr2, from + 1, middle, until)
       check(arraysEq(arr1, arr2, from, middle))
     }
   }.ensuring(_ => arraysEq(arr1, arr2, from, middle))
@@ -441,55 +441,55 @@ object common {
   @pure
   @opaque
   @inlineOnce
-  def arraysEqDropLeftLemma[T](arr1: Array[T], arr2: Array[T], from: Long, middle: Long, to: Long): Unit = {
-    decreases(to - from)
+  def arraysEqDropLeftLemma[T](arr1: Array[T], arr2: Array[T], from: Long, middle: Long, until: Long): Unit = {
+    decreases(until - from)
     require(arr1.length == arr2.length)
-    require(0 <= from && from <= middle && middle <= to && to <= arr1.length)
-    require(arraysEq(arr1, arr2, from, to))
+    require(0 <= from && from <= middle && middle <= until && until <= arr1.length)
+    require(arraysEq(arr1, arr2, from, until))
 
     if (middle == from) {
-      check(arraysEq(arr1, arr2, middle, to))
+      check(arraysEq(arr1, arr2, middle, until))
     } else {
-      arraysEqDropLeftLemma(arr1, arr2, from + 1, middle, to)
-      check(arraysEq(arr1, arr2, middle, to))
+      arraysEqDropLeftLemma(arr1, arr2, from + 1, middle, until)
+      check(arraysEq(arr1, arr2, middle, until))
     }
-  }.ensuring(_ => arraysEq(arr1, arr2, middle, to))
+  }.ensuring(_ => arraysEq(arr1, arr2, middle, until))
 
   @ghost
   @pure
   @opaque
   @inlineOnce
-  def arraysEqTransLemma[T](arr1: Array[T], arr2: Array[T], arr3: Array[T], from: Long, to: Long): Unit = {
-    decreases(to - from)
+  def arraysEqTransLemma[T](arr1: Array[T], arr2: Array[T], arr3: Array[T], from: Long, until: Long): Unit = {
+    decreases(until - from)
     require(arr1.length == arr2.length && arr2.length == arr3.length)
-    require(0 <= from && from <= to && to <= arr1.length)
-    require(arraysEq(arr1, arr2, from, to))
-    require(arraysEq(arr2, arr3, from, to))
+    require(0 <= from && from <= until && until <= arr1.length)
+    require(arraysEq(arr1, arr2, from, until))
+    require(arraysEq(arr2, arr3, from, until))
 
-    if (from == to) {
-      check(arraysEq(arr1, arr3, from, to))
+    if (from == until) {
+      check(arraysEq(arr1, arr3, from, until))
     } else {
-      arraysEqTransLemma(arr1, arr2, arr3, from + 1, to)
-      check(arraysEq(arr1, arr3, from, to))
+      arraysEqTransLemma(arr1, arr2, arr3, from + 1, until)
+      check(arraysEq(arr1, arr3, from, until))
     }
-  }.ensuring(_ => arraysEq(arr1, arr3, from, to))
+  }.ensuring(_ => arraysEq(arr1, arr3, from, until))
 
   @ghost
   @pure
   @opaque
   @inlineOnce
-  def eqImpliesArraysEq[T](arr1: Array[T], arr2: Array[T], from: Long, to: Long): Unit = {
-    decreases(to - from)
+  def eqImpliesArraysEq[T](arr1: Array[T], arr2: Array[T], from: Long, until: Long): Unit = {
+    decreases(until - from)
     require(arr1 == arr2)
-    require(0 <= from && from <= to && to <= arr1.length)
+    require(0 <= from && from <= until && until <= arr1.length)
 
-    if (from == to) {
-      check(arraysEq(arr1, arr2, from, to))
+    if (from == until) {
+      check(arraysEq(arr1, arr2, from, until))
     } else {
-      eqImpliesArraysEq(arr1, arr2, from + 1, to)
-      check(arraysEq(arr1, arr2, from, to))
+      eqImpliesArraysEq(arr1, arr2, from + 1, until)
+      check(arraysEq(arr1, arr2, from, until))
     }
-  }.ensuring(_ => arraysEq(arr1, arr2, from, to))
+  }.ensuring(_ => arraysEq(arr1, arr2, from, until))
 
   @ghost
   @pure

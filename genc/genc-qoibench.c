@@ -112,6 +112,16 @@ static uint64_t ns() {
 #define ERROR(...) printf("abort at line " TOSTRING(__LINE__) ": " __VA_ARGS__); printf("\n"); exit(1)
 
 // -----------------------------------------------------------------------------
+// stb_image encode callback
+
+void stbi_write_callback(void *context, void *data, int size) {
+    int *encoded_size = (int *)context;
+    *encoded_size += size;
+    // In theory we'd need to do another malloc(), memcpy() and free() here to
+    // be fair to the other decode functions...
+}
+
+// -----------------------------------------------------------------------------
 // function to load a whole file into memory
 
 void *fload(const char *path, int *out_size) {
@@ -144,6 +154,7 @@ void *fload(const char *path, int *out_size) {
 
 
 int opt_runs = 1;
+int opt_nopng = 0;
 int opt_nowarmup = 0;
 int opt_noverify = 0;
 int opt_nodecode = 0;
@@ -164,6 +175,7 @@ typedef struct {
     uint64_t px;
     int w;
     int h;
+    benchmark_lib_result_t stbi;
     benchmark_lib_result_t qoi;
     benchmark_lib_result_t genc_qoi;
 } benchmark_result_t;
@@ -172,6 +184,8 @@ typedef struct {
 void benchmark_print_result(benchmark_result_t res) {
     res.px /= res.count;
     res.raw_size /= res.count;
+    res.stbi.decode_time /= res.count;
+    res.stbi.size /= res.count;
     res.qoi.decode_time /= res.count;
     res.qoi.size /= res.count;
     res.genc_qoi.decode_time /= res.count;
@@ -179,6 +193,17 @@ void benchmark_print_result(benchmark_result_t res) {
 
     double px = res.px;
     printf("          decode ms   encode ms   decode mpps   encode mpps   size kb    rate\n");
+    if (!opt_nopng) {
+        printf(
+            "stbi:      %8.1f    %8.1f      %8.2f      %8.2f  %8ld   %4.1f%%\n",
+            (double)res.stbi.decode_time/1000000.0,
+            (double)res.stbi.encode_time/1000000.0,
+            (res.stbi.decode_time > 0 ? px / ((double)res.stbi.decode_time/1000.0) : 0),
+            (res.stbi.encode_time > 0 ? px / ((double)res.stbi.encode_time/1000.0) : 0),
+            res.stbi.size/1024,
+            ((double)res.stbi.size/(double)res.raw_size) * 100.0
+        );
+    }
     printf(
         "qoi:       %8.1f    %8.1f      %8.2f      %8.2f  %8ld   %4.1f%%\n",
         (double)res.qoi.decode_time/1000000.0,
@@ -270,6 +295,14 @@ benchmark_result_t benchmark_image(const char *path) {
     // Decoding
 
     if (!opt_nodecode) {
+        if (!opt_nopng) {
+            BENCHMARK_FN(opt_nowarmup, opt_runs, res.stbi.decode_time, {
+                int dec_w, dec_h, dec_channels;
+                void *dec_p = stbi_load_from_memory(encoded_png, encoded_png_size, &dec_w, &dec_h, &dec_channels, 4);
+                free(dec_p);
+            });
+        }
+
         BENCHMARK_FN(opt_nowarmup, opt_runs, res.qoi.decode_time, {
             qoi_desc desc;
             void *dec_p = qoi_decode(encoded_qoi, encoded_qoi_size, &desc, 4);
@@ -286,6 +319,14 @@ benchmark_result_t benchmark_image(const char *path) {
 
     // Encoding
     if (!opt_noencode) {
+        if (!opt_nopng) {
+            BENCHMARK_FN(opt_nowarmup, opt_runs, res.stbi.encode_time, {
+                int enc_size = 0;
+                stbi_write_png_to_func(stbi_write_callback, &enc_size, w, h, channels, pixels, 0);
+                res.stbi.size = enc_size;
+            });
+        }
+
         BENCHMARK_FN(opt_nowarmup, opt_runs, res.qoi.encode_time, {
             int enc_size;
             void *enc_p = qoi_encode(pixels, &(qoi_desc){
@@ -364,6 +405,9 @@ void benchmark_directory(const char *path, benchmark_result_t *grand_total) {
         dir_total.count++;
         dir_total.raw_size += res.raw_size;
         dir_total.px += res.px;
+        dir_total.stbi.encode_time += res.stbi.encode_time;
+        dir_total.stbi.decode_time += res.stbi.decode_time;
+        dir_total.stbi.size += res.stbi.size;
         dir_total.qoi.encode_time += res.qoi.encode_time;
         dir_total.qoi.decode_time += res.qoi.decode_time;
         dir_total.qoi.size += res.qoi.size;
@@ -374,6 +418,9 @@ void benchmark_directory(const char *path, benchmark_result_t *grand_total) {
         grand_total->count++;
         grand_total->raw_size += res.raw_size;
         grand_total->px += res.px;
+        grand_total->stbi.encode_time += res.stbi.encode_time;
+        grand_total->stbi.decode_time += res.stbi.decode_time;
+        grand_total->stbi.size += res.stbi.size;
         grand_total->qoi.encode_time += res.qoi.encode_time;
         grand_total->qoi.decode_time += res.qoi.decode_time;
         grand_total->qoi.size += res.qoi.size;
@@ -394,6 +441,7 @@ int main(int argc, char **argv) {
         printf("Usage: genc-qoibench <iterations> <directory> [options]\n");
         printf("Options:\n");
         printf("    --nowarmup ... don't perform a warmup run\n");
+        printf("    --nopng ...... don't run png encode/decode\n");
         printf("    --noverify ... don't verify qoi roundtrip\n");
         printf("    --noencode ... don't run encoders\n");
         printf("    --nodecode ... don't run decoders\n");
@@ -407,6 +455,7 @@ int main(int argc, char **argv) {
 
     for (int i = 3; i < argc; i++) {
         if (strcmp(argv[i], "--nowarmup") == 0) { opt_nowarmup = 1; }
+        else if (strcmp(argv[i], "--nopng") == 0) { opt_nopng = 1; }
         else if (strcmp(argv[i], "--noverify") == 0) { opt_noverify = 1; }
         else if (strcmp(argv[i], "--noencode") == 0) { opt_noencode = 1; }
         else if (strcmp(argv[i], "--nodecode") == 0) { opt_nodecode = 1; }

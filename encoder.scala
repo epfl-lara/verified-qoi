@@ -816,7 +816,6 @@ object encoder {
     ((chan == 3) ==> (Pixel.a(px) == 255.toByte)) &&&
     index == decoded.index &&&
     decoded.pixels.length == pixels.length &&&
-    // TODO: Comments
     pxPosInv(decoded.pxPos) &&&
     decoded.pxPos + chan * run1 == pxPos + chan &&&
     ((outPos0 < outPos2) ==> decodeLoopEncodeProp(bytes, pxPrev, outPos0, outPos2, old(decoded), px, decoded)) &&&
@@ -1106,7 +1105,6 @@ object encoder {
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // TODO: Name
   @ghost
   @pure
   def decodeLoopEncodeProp(bytes: Array[Byte],
@@ -1378,8 +1376,6 @@ object encoder {
     check((outPos0 < bytes2.length - Padding) because (bytes.length == bytes2.length))
   }.ensuring(_ => updateRunProp(bytes2, run0, outPos0, ru))
 
-
-  // TODO: Name: this encodes when px != pxPrev
   @ghost
   @opaque
   @inlineOnce
