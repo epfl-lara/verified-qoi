@@ -23,6 +23,7 @@ object decoder {
     def chunksLen: Long = bytes.length - Padding
   }
 
+  @cCode.`export`
   case class DecodedResult(pixels: Array[Byte], w: Long, h: Long, chan: Long)
 
   case class WriteRunPixelsResult(remainingRun: Long, pxPos: Long)

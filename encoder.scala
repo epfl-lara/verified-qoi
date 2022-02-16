@@ -21,6 +21,7 @@ object encoder {
     def pxEnd: Long = pixels.length - chan
   }
 
+  @cCode.`export`
   case class EncodedResult(encoded: Array[Byte], length: Long)
 
   case class EncodeSingleStepResult(px: Int, outPos: Long, run: Long)
@@ -1232,7 +1233,7 @@ object encoder {
       check(decIter.remainingRun == 0)
       check(decPixels.length == pixels.length)
 
-      assert(decoder.writeRunPixelsInv(decoded.pxPos, run - 1, decIter.pxPos, decIter.remainingRun)) // Slow (~70s)
+      assert(decoder.writeRunPixelsInv(decoded.pxPos, run - 1, decIter.pxPos, decIter.remainingRun)) // Slow (~40-70s) and may spuriously fail to verify!!
       unfold(decoder.writeRunPixelsInv(decoded.pxPos, run - 1, decIter.pxPos, decIter.remainingRun))
       assert((decoded.pxPos + chan + chan * (run - 1) <= decoded.pixels.length) ==> (decIter.remainingRun == 0 && decIter.pxPos == decoded.pxPos + chan * run)) // Slow (~60s)
       assert(run - 1 <= run0)

@@ -38,8 +38,11 @@ object common {
       fromRgba(r, g, b, a)
   }
 
+  @cCode.noMangling
   sealed trait OptionMut[@mutable T]
+  @cCode.noMangling
   case class SomeMut[@mutable T](v: T) extends OptionMut[T]
+  @cCode.noMangling
   case class NoneMut[@mutable T]() extends OptionMut[T]
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -389,7 +392,8 @@ object common {
   }.ensuring(_ => arr1(at.toInt) == arr2(at.toInt))
 
   // This function reduces at compile-time to calls to arraysEqAtIndex, we ignore it as such.
-  @ignore  @ghost
+  @ignore
+  @ghost
   inline def arraysEqAtIndices[T](arr1: Array[T], arr2: Array[T], from: Long, to: Long, inline fromIndice: Long, inline toIndice: Long): Unit = {
     inline if (fromIndice >= toIndice) ()
     else {

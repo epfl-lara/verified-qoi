@@ -3,12 +3,12 @@
 #include "genc-bridge.h"
 
 int genc_qoi_decode(void *data, size_t length, void **pixels, int *w, int *h, int *channels) {
-    OptionMut_0_DecodedResult_0 decoded_res = decode((array_int8) { .data = data, .length = length }, length);
-    if (decoded_res.tag == tag_SomeMut_0_DecodedResult_0) {
-        *pixels = decoded_res.value.SomeMut_0_DecodedResult_0_v.v_21.pixels_5.data;
-        *w = decoded_res.value.SomeMut_0_DecodedResult_0_v.v_21.w_3;
-        *h = decoded_res.value.SomeMut_0_DecodedResult_0_v.v_21.h_56;
-        *channels = decoded_res.value.SomeMut_0_DecodedResult_0_v.v_21.chan_14;
+    OptionMut_DecodedResult decoded_res = decode((array_int8) { .data = data, .length = length }, length);
+    if (decoded_res.tag == tag_SomeMut_DecodedResult) {
+        *pixels = decoded_res.value.SomeMut_DecodedResult_v.v.pixels.data;
+        *w = decoded_res.value.SomeMut_DecodedResult_v.v.w;
+        *h = decoded_res.value.SomeMut_DecodedResult_v.v.h;
+        *channels = decoded_res.value.SomeMut_DecodedResult_v.v.chan;
         return 1;
     } else {
         return 0;
@@ -16,10 +16,10 @@ int genc_qoi_decode(void *data, size_t length, void **pixels, int *w, int *h, in
 }
 
 int genc_qoi_encode(void *pixels, int w, int h, int channels, void **data, size_t *length) {
-    OptionMut_0_EncodedResult_0 encoded_res = encode((array_int8) { .data = pixels, .length = w * h * channels }, w, h, channels);
-    if (encoded_res.tag == tag_SomeMut_0_EncodedResult_0) {
-        *data = encoded_res.value.SomeMut_0_EncodedResult_0_v.v_21.encoded_0.data;
-        *length = encoded_res.value.SomeMut_0_EncodedResult_0_v.v_21.length_1;
+    OptionMut_EncodedResult encoded_res = encode((array_int8) { .data = pixels, .length = w * h * channels }, w, h, channels);
+    if (encoded_res.tag == tag_SomeMut_EncodedResult) {
+        *data = encoded_res.value.SomeMut_EncodedResult_v.v.encoded.data;
+        *length = encoded_res.value.SomeMut_EncodedResult_v.v.length;
         return 1;
     } else {
         return 0;
