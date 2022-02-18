@@ -184,10 +184,13 @@ typedef struct {
 void benchmark_print_result(benchmark_result_t res) {
     res.px /= res.count;
     res.raw_size /= res.count;
+    res.stbi.encode_time /= res.count;
     res.stbi.decode_time /= res.count;
     res.stbi.size /= res.count;
+    res.qoi.encode_time /= res.count;
     res.qoi.decode_time /= res.count;
     res.qoi.size /= res.count;
+    res.genc_qoi.encode_time /= res.count;
     res.genc_qoi.decode_time /= res.count;
     res.genc_qoi.size /= res.count;
 

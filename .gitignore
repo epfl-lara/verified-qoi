@@ -1,9 +1,8 @@
-misc
 genc/genc-qoiconv
 genc/genc-qoibench
 genc/stainless.c
 genc/stainless.h
-results/
+output/
 
 # Stainless
 /bin/stainless-*

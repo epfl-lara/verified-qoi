@@ -6,7 +6,7 @@
 * Retrieved from https://commons.wikimedia.org/wiki/File:Bridalveil_Fall_and_valley.JPG
 * Author: [Amadscientist](https://commons.wikimedia.org/wiki/User:Amadscientist)
 * License: [Creative Commons](https://en.wikipedia.org/wiki/en:Creative_Commons) [Attribution-Share Alike 3.0 Unported](https://creativecommons.org/licenses/by-sa/3.0/deed.en)
-* Modifications: 
+* Modifications:
   * exported from `.jpg` to `.png` through GIMP 2.10
   * exported from `.png` to `.qoi` through [`qoiconv`](https://github.com/phoboslab/qoi/blob/master/qoiconv.c)
 
@@ -14,7 +14,7 @@
 * Retrieved from https://commons.wikimedia.org/wiki/File:Central_Bern_from_north.jpg
 * Author: [CucombreLibre](https://www.flickr.com/people/33200530@N04)
 * License: [Creative Commons](https://en.wikipedia.org/wiki/en:Creative_Commons) [Attribution 2.0 Generic license](https://creativecommons.org/licenses/by/2.0/deed.en)
-* Modifications: 
+* Modifications:
   * exported from `.jpg` to `.png` through GIMP 2.10
   * exported from `.png` to `.qoi` through [`qoiconv`](https://github.com/phoboslab/qoi/blob/master/qoiconv.c)
 
@@ -22,7 +22,7 @@
 * Retrieved from https://commons.wikimedia.org/wiki/File:Chocolate_Hills_overview.JPG
 * Author: [P199](https://commons.wikimedia.org/wiki/User:P199)
 * License: [Creative Commons](https://en.wikipedia.org/wiki/en:Creative_Commons) [Attribution-Share Alike 3.0 Unported](https://creativecommons.org/licenses/by-sa/3.0/deed.en)
-* Modifications: 
+* Modifications:
   * exported from `.jpg` to `.png` through GIMP 2.10
   * exported from `.png` to `.qoi` through [`qoiconv`](https://github.com/phoboslab/qoi/blob/master/qoiconv.c)
 
@@ -30,13 +30,13 @@
 * Retrieved from https://commons.wikimedia.org/wiki/File:L%27Eyjafjallaj%C3%B6kull_sous_les_aurores_bor%C3%A9ales.jpg
 * Author: [Sébastien Giguère](https://commons.wikimedia.org/wiki/User:Thaumazein1)
 * License: [Creative Commons](https://en.wikipedia.org/wiki/en:Creative_Commons) [Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/deed.en)
-* Modifications: 
+* Modifications:
   * renamed from `L'Eyjafjallajökull_sous_les_aurores_boréales` to `Eyjafjallajokull_sous_les_aurores_boreales`
   * exported from `.jpg` to `.png` through GIMP 2.10
   * exported from `.png` to `.qoi` through [`qoiconv`](https://github.com/phoboslab/qoi/blob/master/qoiconv.c)
 
 ## `Linze_Zhangye_Gansu_China_panoramio_4`
-* Retrieved from https://commons.wikimedia.org/wiki/File:Linze,_Zhangye,_Gansu,_China_-_panoramio_(4).jpg
+* Retrieved from https://commons.wikimedia.org/wiki/File:Linze,_Zhangye,_Gansu,\_China\_-\_panoramio\_(4).jpg
 * Author: [Han Lei](https://web.archive.org/web/20161027200109/http://www.panoramio.com/user/1540469?with_photo_id=102251104)
 * License: [Creative Commons](https://en.wikipedia.org/wiki/en:Creative_Commons) [Attribution-Share Alike 3.0 Unported](https://creativecommons.org/licenses/by-sa/3.0/deed.en)
 * Modifications:

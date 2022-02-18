@@ -7,7 +7,7 @@ CFLAGS=-O3
 all: genc genc-qoibench genc-qoiconv
 
 stainless.c:
-	stainless-dotty ../common.scala ../decoder.scala ../encoder.scala \
+	stainless-dotty ../verified/common.scala ../verified/decoder.scala ../verified/encoder.scala \
 	--genc -J-Xms10G -J-Xss20M
 
 genc: stainless.c
