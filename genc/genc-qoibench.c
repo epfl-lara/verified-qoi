@@ -1,5 +1,7 @@
-// TODO: This is a tweaked version of qoibench.c
-//  Figure out if we can "distribute it", along with stb_image
+// Tweaked version of https://github.com/phoboslab/qoi/blob/master/qoibench.c
+// with the following changes:
+//   - Removed libpng benchmarking
+//   - Added genc_qoi benchmarking
 
 /*
 

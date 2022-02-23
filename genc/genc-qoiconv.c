@@ -1,5 +1,5 @@
-// TODO: This is a tweaked version of qoiconv.c
-//  Figure out if we can "distribute it", along with stb_image
+// Tweaked version of https://github.com/phoboslab/qoi/blob/master/qoiconv.c
+// where we call genc_qoi_read and genc_qoi_write instead of qoi_read and qoi_write
 
 /*
 
